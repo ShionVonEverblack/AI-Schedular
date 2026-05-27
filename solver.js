@@ -124,16 +124,9 @@ function calculateFitness(schedule, graph, courses, timeSlotsCount) {
         slotA.timeIndex === slotB.timeIndex;
 
       if (sameTime) {
-        // Konflik graf: matkul yang terhubung ada di waktu bersamaan
-        if (graph.isConflict(idA, idB)) {
-          totalPenalty += 10;
-          hardConflicts++;
-        }
-        // Konflik ruangan: ruangan yang sama di waktu bersamaan
-        if (slotA.room === slotB.room) {
-          totalPenalty += 10;
-          hardConflicts++;
-        }
+        // Aturan Ketat: Matkul tidak boleh menumpuk di waktu & hari yang sama
+        totalPenalty += 10;
+        hardConflicts++;
       }
     }
 

@@ -679,6 +679,21 @@ function handleDrop(e) {
   
   if (isNaN(dayIndex) || isNaN(timeIndex)) return;
 
+  // Cek apakah sel tujuan sudah terisi matkul lain (tidak boleh numpuk)
+  let isOccupied = false;
+  for (const [id, assignment] of Object.entries(state.schedule)) {
+    if (id !== courseId && assignment.dayIndex === dayIndex && assignment.timeIndex === timeIndex) {
+      isOccupied = true;
+      break;
+    }
+  }
+
+  if (isOccupied) {
+    showNotification('Gagal: Slot ini sudah terisi matkul lain!', 'warning');
+    addLog(`⚠️ Swap dibatalkan: Slot Hari ${dayIndex} Waktu ${timeIndex} penuh.`, 'warning');
+    return;
+  }
+
   // Preserve the room if moving, or just assign first available room if simple move
   const oldAssignment = state.schedule[courseId];
   if (oldAssignment) {
