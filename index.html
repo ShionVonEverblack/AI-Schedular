@@ -73,6 +73,23 @@
           </form>
         </div>
 
+        <!-- Panel: Jam Kuliah -->
+        <div class="panel">
+          <div class="panel-header">
+            <h3>⏰ Jam Kuliah</h3>
+            <span class="count-badge" id="timeslot-count">0</span>
+          </div>
+          <div class="item-list" id="timeslot-list"></div>
+          <form class="add-form" id="form-add-timeslot">
+            <div class="form-row">
+              <input type="time" id="input-time-start" required />
+              <span style="align-self: center; color: var(--text-muted);">–</span>
+              <input type="time" id="input-time-end" required />
+            </div>
+            <button type="submit" class="btn btn-add btn-sm">+ Tambah Jam</button>
+          </form>
+        </div>
+
         <!-- Panel: Aksi -->
         <div class="panel actions-panel">
           <button id="btn-preset" class="btn btn-secondary">📋 Load Preset</button>

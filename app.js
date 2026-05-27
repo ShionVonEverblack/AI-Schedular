@@ -13,10 +13,12 @@
 const state = {
   courses: [],
   rooms: [],
+  timeSlots: [],
   schedule: null,
   conflictGraph: null,
   isRunning: false,
   nextCourseId: 8, // Preset MK01-MK07, next = 8
+  nextTimeSlotId: 1,
 };
 
 // ============================================================
@@ -26,9 +28,12 @@ const state = {
 document.addEventListener('DOMContentLoaded', init);
 
 function init() {
+  state.timeSlots = TIME_SLOTS.map(ts => ({ ...ts }));
+  state.nextTimeSlotId = state.timeSlots.length + 1;
   setupEventListeners();
   renderCalendarEmpty();
   renderStats(null);
+  renderTimeSlotList();
   addLog('Aplikasi siap. Klik "Load Preset" atau tambahkan data manual.', 'info');
 }
 
@@ -39,6 +44,7 @@ function setupEventListeners() {
   document.getElementById('btn-reset').addEventListener('click', resetAll);
   document.getElementById('form-add-course').addEventListener('submit', handleAddCourse);
   document.getElementById('form-add-room').addEventListener('submit', handleAddRoom);
+  document.getElementById('form-add-timeslot').addEventListener('submit', handleAddTimeSlot);
 }
 
 // ============================================================
@@ -51,16 +57,19 @@ function loadPreset() {
     color: COURSE_COLORS[i % COURSE_COLORS.length],
   }));
   state.rooms = [...PRESET_ROOMS];
+  state.timeSlots = TIME_SLOTS.map(ts => ({ ...ts }));
+  state.nextTimeSlotId = state.timeSlots.length + 1;
   state.schedule = null;
   state.nextCourseId = 8;
 
   renderCourseList();
   renderRoomList();
+  renderTimeSlotList();
   renderCalendarEmpty();
   renderLegend();
   renderStats(null);
   showNotification('Data preset Semester 2 berhasil dimuat!', 'success');
-  addLog('📋 Loaded preset: 7 mata kuliah, 4 ruangan', 'info');
+  addLog('📋 Loaded preset: 7 mata kuliah, 4 ruangan, 4 jam kuliah', 'info');
 }
 
 // ============================================================
@@ -132,6 +141,66 @@ function removeRoom(index) {
 }
 
 // ============================================================
+// 5B. TIMESLOT MANAGEMENT
+// ============================================================
+
+function handleAddTimeSlot(e) {
+  e.preventDefault();
+
+  const startInput = document.getElementById('input-time-start');
+  const endInput = document.getElementById('input-time-end');
+
+  const start = startInput.value;
+  const end = endInput.value;
+
+  if (!start || !end) return;
+
+  if (start >= end) {
+    showNotification('Jam mulai harus lebih awal dari jam selesai!', 'warning');
+    return;
+  }
+
+  const label = `${start} – ${end}`;
+
+  if (state.timeSlots.some((ts) => ts.label === label)) {
+    showNotification(`Jam kuliah "${label}" sudah ada!`, 'warning');
+    return;
+  }
+
+  const id = state.nextTimeSlotId++;
+  state.timeSlots.push({ id, label, start, end });
+
+  // Sort chronologically by start time
+  state.timeSlots.sort((a, b) => a.start.localeCompare(b.start));
+
+  renderTimeSlotList();
+
+  // Clear active schedule
+  state.schedule = null;
+  renderCalendarEmpty();
+  renderStats(null);
+
+  e.target.reset();
+  showNotification(`Jam kuliah "${label}" ditambahkan!`, 'success');
+  addLog(`🕒 Tambah jam kuliah: ${label}`, 'success');
+}
+
+function removeTimeSlot(index) {
+  const label = state.timeSlots[index].label;
+  state.timeSlots.splice(index, 1);
+
+  renderTimeSlotList();
+
+  // Clear active schedule
+  state.schedule = null;
+  renderCalendarEmpty();
+  renderStats(null);
+
+  showNotification(`Jam kuliah "${label}" dihapus`, 'info');
+  addLog(`🗑️ Hapus jam kuliah: ${label}`, 'info');
+}
+
+// ============================================================
 // 6. RENDERING — Sidebar Lists
 // ============================================================
 
@@ -175,6 +244,24 @@ function renderRoomList() {
   document.getElementById('room-count').textContent = state.rooms.length;
 }
 
+function renderTimeSlotList() {
+  const container = document.getElementById('timeslot-list');
+  container.innerHTML = '';
+
+  state.timeSlots.forEach((slot, index) => {
+    const el = document.createElement('div');
+    el.className = 'timeslot-item';
+    el.innerHTML = `
+      <span>⏰ ${slot.label}</span>
+      <button class="btn-remove" title="Hapus">×</button>
+    `;
+    el.querySelector('.btn-remove').addEventListener('click', () => removeTimeSlot(index));
+    container.appendChild(el);
+  });
+
+  document.getElementById('timeslot-count').textContent = state.timeSlots.length;
+}
+
 // ============================================================
 // 7. RENDERING — Calendar Grid
 // ============================================================
@@ -212,7 +299,7 @@ function renderCalendar(schedule) {
   });
 
   // Time rows
-  TIME_SLOTS.forEach((slot, timeIndex) => {
+  state.timeSlots.forEach((slot, timeIndex) => {
     // Time label
     const timeLabel = document.createElement('div');
     timeLabel.className = 'calendar-time-label';
@@ -316,6 +403,10 @@ async function generateSchedule() {
     showNotification('Tambahkan ruangan terlebih dahulu!', 'error');
     return;
   }
+  if (state.timeSlots.length === 0) {
+    showNotification('Tambahkan jam kuliah terlebih dahulu!', 'error');
+    return;
+  }
 
   state.isRunning = true;
   const btn = document.getElementById('btn-generate');
@@ -347,8 +438,8 @@ async function generateSchedule() {
   }
 
   // ── Step 2: Generate all available slots ──
-  const allSlots = generateAllSlots(state.rooms);
-  addLog(`📦 Total slot tersedia: ${allSlots.length} (${DAYS.length} hari × ${TIME_SLOTS.length} waktu × ${state.rooms.length} ruangan)`, 'info');
+  const allSlots = generateAllSlots(state.rooms, state.timeSlots);
+  addLog(`📦 Total slot tersedia: ${allSlots.length} (${DAYS.length} hari × ${state.timeSlots.length} waktu × ${state.rooms.length} ruangan)`, 'info');
 
   // ── Step 3: Run Greedy Graph Coloring + SA ──
   addLog('🎨 Menjalankan Greedy Graph Coloring untuk solusi awal...', 'info');
@@ -419,6 +510,8 @@ async function generateSchedule() {
 function resetAll() {
   state.courses = [];
   state.rooms = [];
+  state.timeSlots = TIME_SLOTS.map(ts => ({ ...ts }));
+  state.nextTimeSlotId = state.timeSlots.length + 1;
   state.schedule = null;
   state.conflictGraph = null;
   state.nextCourseId = 1;
@@ -429,6 +522,7 @@ function resetAll() {
 
   renderCourseList();
   renderRoomList();
+  renderTimeSlotList();
   renderCalendarEmpty();
   renderStats(null);
   showNotification('Semua data direset', 'info');
@@ -440,35 +534,48 @@ function resetAll() {
 // ============================================================
 
 function exportCSV() {
-  if (!state.schedule) {
-    showNotification('Generate jadwal terlebih dahulu!', 'error');
+  if (state.courses.length === 0) {
+    showNotification('Tambahkan mata kuliah terlebih dahulu!', 'error');
     return;
   }
 
   let csv = 'Hari,Waktu,Mata Kuliah,Dosen,SKS,Ruangan\n';
 
-  // Sort by day → time
-  const entries = Object.entries(state.schedule).sort((a, b) => {
-    if (a[1].dayIndex !== b[1].dayIndex) return a[1].dayIndex - b[1].dayIndex;
-    return a[1].timeIndex - b[1].timeIndex;
-  });
+  if (state.schedule) {
+    // Sort by day → time
+    const entries = Object.entries(state.schedule).sort((a, b) => {
+      if (a[1].dayIndex !== b[1].dayIndex) return a[1].dayIndex - b[1].dayIndex;
+      return a[1].timeIndex - b[1].timeIndex;
+    });
 
-  for (const [courseId, slot] of entries) {
-    const course = state.courses.find((c) => c.id === courseId);
-    if (course) {
-      csv += `${DAYS[slot.dayIndex]},${TIME_SLOTS[slot.timeIndex].label},${course.name},${course.lecturer},${course.sks},${slot.room}\n`;
+    for (const [courseId, slot] of entries) {
+      const course = state.courses.find((c) => c.id === courseId);
+      if (course) {
+        const timeLabel = state.timeSlots[slot.timeIndex] ? state.timeSlots[slot.timeIndex].label : '';
+        csv += `${DAYS[slot.dayIndex]},${timeLabel},${course.name},${course.lecturer},${course.sks},${slot.room}\n`;
+      }
+    }
+  } else {
+    // Export just the course list
+    for (const course of state.courses) {
+      csv += `,,${course.name},${course.lecturer},${course.sks},\n`;
     }
   }
 
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
   const link = document.createElement('a');
   link.href = URL.createObjectURL(blob);
-  link.download = 'jadwal_kuliah.csv';
+  link.download = state.schedule ? 'jadwal_kuliah.csv' : 'daftar_mata_kuliah.csv';
   link.click();
   URL.revokeObjectURL(link.href);
 
-  showNotification('📥 Jadwal berhasil diekspor ke CSV!', 'success');
-  addLog('💾 Jadwal diekspor ke file jadwal_kuliah.csv', 'success');
+  if (state.schedule) {
+    showNotification('📥 Jadwal berhasil diekspor ke CSV!', 'success');
+    addLog('💾 Jadwal diekspor ke file jadwal_kuliah.csv', 'success');
+  } else {
+    showNotification('📥 Daftar mata kuliah berhasil diekspor ke CSV!', 'success');
+    addLog('💾 Daftar mata kuliah diekspor ke file daftar_mata_kuliah.csv', 'success');
+  }
 }
 
 // ============================================================

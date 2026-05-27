@@ -64,10 +64,10 @@ const PRESET_COURSES = [
 // Setiap slot = kombinasi (hari, waktu, ruangan)
 // Total = 5 hari × 4 waktu × 4 ruangan = 80 slot
 
-function generateAllSlots(rooms) {
+function generateAllSlots(rooms, timeSlots = TIME_SLOTS) {
   const slots = [];
   for (let d = 0; d < DAYS.length; d++) {
-    for (let t = 0; t < TIME_SLOTS.length; t++) {
+    for (let t = 0; t < timeSlots.length; t++) {
       for (const room of rooms) {
         slots.push({ dayIndex: d, timeIndex: t, room });
       }

@@ -250,7 +250,8 @@ body {
 }
 
 .course-item,
-.room-item {
+.room-item,
+.timeslot-item {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -263,7 +264,8 @@ body {
 }
 
 .course-item:hover,
-.room-item:hover {
+.room-item:hover,
+.timeslot-item:hover {
   background: var(--bg-hover);
   border-color: var(--border);
 }
@@ -296,10 +298,15 @@ body {
   color: var(--text-muted);
 }
 
-.room-item span {
+.room-item span,
+.timeslot-item span {
   flex: 1;
   font-size: 0.8rem;
   font-weight: 500;
+}
+
+.add-form input[type="time"] {
+  color-scheme: dark;
 }
 
 /* ── Remove Button ── */
@@ -466,6 +473,7 @@ body {
   min-height: 0;
   display: flex;
   flex-direction: column;
+  overflow-y: auto;
   transition: all 0.5s ease;
 }
 
@@ -517,8 +525,7 @@ body {
   gap: 1px;
   background: var(--border);
   border-radius: var(--radius-md);
-  overflow: hidden;
-  flex: 1;
+  overflow: visible;
 }
 
 .calendar-corner {
