@@ -49,13 +49,13 @@ const PRESET_ROOMS = ['R101', 'R102', 'R103', 'R104'];
 // ============================================================
 
 const PRESET_COURSES = [
-  { id: 'MK01', name: 'Struktur Data',        sks: 3, lecturer: 'Dosen A', semester: 2 },
-  { id: 'MK02', name: 'Teori Graf',            sks: 3, lecturer: 'Dosen B', semester: 2 },
-  { id: 'MK03', name: 'KDKA',                  sks: 3, lecturer: 'Dosen C', semester: 2 },
-  { id: 'MK04', name: 'Probstat',              sks: 3, lecturer: 'Dosen D', semester: 2 },
-  { id: 'MK05', name: 'Arsikom',               sks: 3, lecturer: 'Dosen E', semester: 2 },
-  { id: 'MK06', name: 'Bahasa Inggris',        sks: 2, lecturer: 'Dosen F', semester: 2 },
-  { id: 'MK07', name: 'Agama Islam',           sks: 2, lecturer: 'Dosen G', semester: 2 },
+  { id: 'MK01', name: 'Struktur Data',        sks: 3, lecturer: 'Dosen A', semester: 2, preference: 'none' },
+  { id: 'MK02', name: 'Teori Graf',            sks: 3, lecturer: 'Dosen B', semester: 2, preference: 'none' },
+  { id: 'MK03', name: 'KDKA',                  sks: 3, lecturer: 'Dosen C', semester: 2, preference: 'avoid-morning' },
+  { id: 'MK04', name: 'Probstat',              sks: 3, lecturer: 'Dosen D', semester: 2, preference: 'avoid-evening' },
+  { id: 'MK05', name: 'Arsikom',               sks: 3, lecturer: 'Dosen E', semester: 2, preference: 'none' },
+  { id: 'MK06', name: 'Bahasa Inggris',        sks: 2, lecturer: 'Dosen F', semester: 2, preference: 'none' },
+  { id: 'MK07', name: 'Agama Islam',           sks: 2, lecturer: 'Dosen G', semester: 2, preference: 'none' },
 ];
 
 // ============================================================

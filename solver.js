@@ -102,7 +102,12 @@ function greedyColoring(graph, courses, slots) {
 //   - Hard: Matkul yang terhubung di graf konflik berada di waktu sama → +10
 //   - Hard: Dua matkul di ruangan yang sama pada waktu yang sama → +10
 
-function calculateFitness(schedule, graph) {
+function calculateFitness(schedule, graph, courses, timeSlotsCount) {
+  // Buat lookup table untuk akses preferensi cepat
+  const courseLookup = {};
+  for (const c of courses) {
+    courseLookup[c.id] = c;
+  }
   let totalPenalty = 0;
   let hardConflicts = 0;
 
@@ -129,6 +134,18 @@ function calculateFitness(schedule, graph) {
           totalPenalty += 10;
           hardConflicts++;
         }
+      }
+    }
+
+    // Perhitungan Soft Constraint (Preferensi Waktu)
+    const [id, slot] = entries[i];
+    const course = courseLookup[id];
+    if (course && course.preference) {
+      if (course.preference === 'avoid-morning' && slot.timeIndex === 0) {
+        totalPenalty += 2; // Penalti ringan
+      }
+      if (course.preference === 'avoid-evening' && slot.timeIndex === timeSlotsCount - 1) {
+        totalPenalty += 2; // Penalti ringan
       }
     }
   }
@@ -180,9 +197,13 @@ async function simulatedAnnealing(graph, courses, slots, config, onStep) {
     animSpeed = 5,
   } = config;
 
+  // Hitung jumlah slot waktu unik dari slots
+  const maxTimeIndex = slots.reduce((max, s) => Math.max(max, s.timeIndex), 0);
+  const timeSlotsCount = maxTimeIndex + 1;
+
   // ── Solusi awal dari Greedy Graph Coloring ──
   let currentSchedule = greedyColoring(graph, courses, slots);
-  let currentResult = calculateFitness(currentSchedule, graph);
+  let currentResult = calculateFitness(currentSchedule, graph, courses, timeSlotsCount);
   let currentPenalty = currentResult.penalty;
 
   let bestSchedule = deepCopy(currentSchedule);
@@ -223,7 +244,7 @@ async function simulatedAnnealing(graph, courses, slots, config, onStep) {
       currentSchedule,
       slots
     );
-    const neighborResult = calculateFitness(neighborSchedule, graph);
+    const neighborResult = calculateFitness(neighborSchedule, graph, courses, timeSlotsCount);
     const neighborPenalty = neighborResult.penalty;
 
     // 2. Hitung ΔE = fitness(neighbor) - fitness(current)

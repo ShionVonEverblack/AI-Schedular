@@ -49,6 +49,11 @@
                 <option value="4">4 SKS</option>
               </select>
             </div>
+            <select id="input-preference" style="margin-bottom: 4px;">
+              <option value="none">Tanpa Preferensi Waktu</option>
+              <option value="avoid-morning">Hindari Pagi (Slot Awal)</option>
+              <option value="avoid-evening">Hindari Sore (Slot Akhir)</option>
+            </select>
             <button type="submit" class="btn btn-add btn-sm">+ Tambah Matkul</button>
           </form>
         </div>
@@ -101,7 +106,10 @@
         <!-- Calendar -->
         <div class="calendar-wrapper" id="calendar-wrapper">
           <div class="calendar-title-bar">
-            <h2>📅 Jadwal Kuliah</h2>
+            <h2>
+              📅 Jadwal Kuliah 
+              <button id="btn-print" class="btn btn-secondary btn-sm" style="margin-left: 12px; padding: 4px 8px;">🖨️ Cetak</button>
+            </h2>
             <div class="calendar-legend" id="calendar-legend"></div>
           </div>
           <div class="calendar-grid" id="calendar-grid">
@@ -144,12 +152,25 @@
           </div>
         </div>
 
-        <!-- Log Panel -->
-        <div class="log-panel">
-          <div class="log-header">
-            <h3>🖥️ Log Algoritma</h3>
+        <!-- Bottom Panels -->
+        <div class="bottom-panels">
+          <!-- Log Panel -->
+          <div class="log-panel">
+            <div class="log-header">
+              <h3>🖥️ Log Algoritma</h3>
+            </div>
+            <div class="log-content" id="log-content"></div>
           </div>
-          <div class="log-content" id="log-content"></div>
+
+          <!-- Graph Panel -->
+          <div class="graph-panel">
+            <div class="log-header">
+              <h3>🕸️ Graf Konflik (Warna = Jadwal)</h3>
+            </div>
+            <div class="graph-content">
+              <canvas id="conflict-canvas"></canvas>
+            </div>
+          </div>
         </div>
 
       </main>

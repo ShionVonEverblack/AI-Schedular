@@ -42,9 +42,14 @@ function setupEventListeners() {
   document.getElementById('btn-generate').addEventListener('click', generateSchedule);
   document.getElementById('btn-export').addEventListener('click', exportCSV);
   document.getElementById('btn-reset').addEventListener('click', resetAll);
+  document.getElementById('btn-print').addEventListener('click', () => window.print());
   document.getElementById('form-add-course').addEventListener('submit', handleAddCourse);
   document.getElementById('form-add-room').addEventListener('submit', handleAddRoom);
   document.getElementById('form-add-timeslot').addEventListener('submit', handleAddTimeSlot);
+  
+  window.addEventListener('resize', () => {
+    if (state.conflictGraph) drawGraph();
+  });
 }
 
 // ============================================================
@@ -82,17 +87,19 @@ function handleAddCourse(e) {
   const nameInput = document.getElementById('input-course-name');
   const lecturerInput = document.getElementById('input-lecturer');
   const sksSelect = document.getElementById('input-sks');
+  const prefSelect = document.getElementById('input-preference');
 
   const name = nameInput.value.trim();
   const lecturer = lecturerInput.value.trim();
   const sks = parseInt(sksSelect.value) || 3;
+  const preference = prefSelect ? prefSelect.value : 'none';
 
   if (!name || !lecturer) return;
 
   const id = 'MK' + String(state.nextCourseId++).padStart(2, '0');
   const color = COURSE_COLORS[state.courses.length % COURSE_COLORS.length];
 
-  state.courses.push({ id, name, lecturer, sks, semester: 2, color });
+  state.courses.push({ id, name, lecturer, sks, semester: 2, color, preference });
   renderCourseList();
   renderLegend();
   e.target.reset();
@@ -310,6 +317,13 @@ function renderCalendar(schedule) {
     DAYS.forEach((day, dayIndex) => {
       const cell = document.createElement('div');
       cell.className = 'calendar-cell';
+      cell.dataset.day = dayIndex;
+      cell.dataset.time = timeIndex;
+      
+      // Drag & Drop Event Listeners
+      cell.addEventListener('dragover', handleDragOver);
+      cell.addEventListener('dragleave', handleDragLeave);
+      cell.addEventListener('drop', handleDrop);
 
       // Find all courses assigned to this (day, time)
       for (const [courseId, assignment] of Object.entries(schedule)) {
@@ -319,6 +333,10 @@ function renderCalendar(schedule) {
             const card = document.createElement('div');
             card.className = 'course-card';
             card.id = `card-${courseId}`;
+            card.draggable = true;
+            card.dataset.courseId = courseId;
+            card.addEventListener('dragstart', handleDragStart);
+            
             card.style.borderLeftColor = course.color;
             card.style.background = hexToRgba(course.color, 0.12);
             card.innerHTML = `
@@ -334,6 +352,8 @@ function renderCalendar(schedule) {
       grid.appendChild(cell);
     });
   });
+
+  drawGraph();
 }
 
 function renderLegend() {
@@ -621,4 +641,150 @@ function hexToRgba(hex, alpha = 1) {
   const g = parseInt(hex.slice(3, 5), 16);
   const b = parseInt(hex.slice(5, 7), 16);
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+// ============================================================
+// 13. DRAG & DROP LOGIC
+// ============================================================
+
+function handleDragStart(e) {
+  e.dataTransfer.setData('text/plain', e.target.dataset.courseId);
+  e.dataTransfer.effectAllowed = 'move';
+}
+
+function handleDragOver(e) {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  e.currentTarget.classList.add('drag-over');
+}
+
+function handleDragLeave(e) {
+  e.currentTarget.classList.remove('drag-over');
+}
+
+function handleDrop(e) {
+  e.preventDefault();
+  e.currentTarget.classList.remove('drag-over');
+  
+  if (!state.schedule) return;
+
+  const courseId = e.dataTransfer.getData('text/plain');
+  const dayIndex = parseInt(e.currentTarget.dataset.day);
+  const timeIndex = parseInt(e.currentTarget.dataset.time);
+  
+  if (isNaN(dayIndex) || isNaN(timeIndex)) return;
+
+  // Preserve the room if moving, or just assign first available room if simple move
+  const oldAssignment = state.schedule[courseId];
+  if (oldAssignment) {
+    oldAssignment.dayIndex = dayIndex;
+    oldAssignment.timeIndex = timeIndex;
+    
+    // Recalculate fitness
+    const maxTimeIndex = state.timeSlots.length;
+    const result = calculateFitness(state.schedule, state.conflictGraph, state.courses, maxTimeIndex);
+    
+    if (result.conflicts > 0) {
+      showNotification('Modifikasi menghasilkan jadwal bentrok!', 'warning');
+      addLog(`⚠️ Swap manual: Terdapat ${result.conflicts} konflik ruangan/dosen.`, 'warning');
+    } else {
+      showNotification('Jadwal berhasil digeser.', 'success');
+      addLog(`✨ Swap manual sukses tanpa konflik.`, 'success');
+    }
+    
+    // Update stats & render
+    renderStats({
+      conflicts: result.conflicts,
+      temperature: 0,
+      iteration: 'Manual',
+      bestPenalty: result.penalty
+    });
+    renderCalendar(state.schedule);
+  }
+}
+
+// ============================================================
+// 14. GRAPH VISUALIZATION
+// ============================================================
+
+function drawGraph() {
+  const canvas = document.getElementById('conflict-canvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  
+  // Resize to match display size (handle high DPI if needed, keeping simple for now)
+  const rect = canvas.parentElement.getBoundingClientRect();
+  canvas.width = rect.width;
+  canvas.height = rect.height;
+  
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  
+  if (!state.courses.length || !state.conflictGraph) return;
+
+  const courses = state.courses;
+  const graph = state.conflictGraph.adjacencyList;
+  const radius = Math.min(canvas.width, canvas.height) / 2 - 30;
+  const centerX = canvas.width / 2;
+  const centerY = canvas.height / 2;
+  
+  // Calculate positions in a circle
+  const positions = {};
+  courses.forEach((course, i) => {
+    const angle = (i / courses.length) * 2 * Math.PI - Math.PI / 2;
+    positions[course.id] = {
+      x: centerX + radius * Math.cos(angle),
+      y: centerY + radius * Math.sin(angle)
+    };
+  });
+  
+  // Draw edges
+  ctx.lineWidth = 1.5;
+  courses.forEach(course => {
+    const p1 = positions[course.id];
+    const neighbors = graph[course.id] || [];
+    neighbors.forEach(neighborId => {
+      // Draw edge only in one direction to avoid double drawing
+      if (course.id < neighborId) {
+        const p2 = positions[neighborId];
+        if (p1 && p2) {
+          ctx.beginPath();
+          ctx.moveTo(p1.x, p1.y);
+          ctx.lineTo(p2.x, p2.y);
+          ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+          ctx.stroke();
+        }
+      }
+    });
+  });
+  
+  // Draw nodes
+  courses.forEach(course => {
+    const p = positions[course.id];
+    let fillStyle = '#333';
+    let strokeStyle = '#666';
+    
+    // Highlight if scheduled
+    if (state.schedule && state.schedule[course.id]) {
+      fillStyle = course.color;
+      strokeStyle = '#fff';
+    }
+    
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, 14, 0, 2 * Math.PI);
+    ctx.fillStyle = fillStyle;
+    ctx.fill();
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = strokeStyle;
+    ctx.stroke();
+    
+    // Node Label
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 10px Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    
+    // Shorten ID to MK1 instead of MK01 for better fit, or just use digits
+    const shortId = course.id.replace('MK0', '').replace('MK', '');
+    ctx.fillText(shortId, p.x, p.y);
+  });
 }

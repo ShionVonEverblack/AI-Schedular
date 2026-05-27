@@ -707,11 +707,38 @@ body {
 /* ============================================================
    7. LOG PANEL
    ============================================================ */
-.log-panel {
+.bottom-panels {
+  display: flex;
+  gap: 16px;
+  height: 220px;
+  min-height: 220px;
+  flex-shrink: 0;
+  margin-top: 16px;
+}
+
+.log-panel, .graph-panel {
+  flex: 1;
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
+}
+
+.graph-content {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.2);
+  position: relative;
+}
+
+#conflict-canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
 }
 
 .log-header {
@@ -729,7 +756,7 @@ body {
 
 .log-content {
   padding: 10px 16px;
-  max-height: 150px;
+  flex: 1;
   overflow-y: auto;
   font-family: 'Consolas', 'Courier New', monospace;
   font-size: 0.7rem;
@@ -936,5 +963,81 @@ body {
 
   .stats-bar {
     grid-template-columns: 1fr 1fr;
+  }
+}
+
+/* ============================================================
+   12. DRAG & DROP AND PRINT MEDIA
+   ============================================================ */
+.course-card[draggable="true"] {
+  cursor: grab;
+}
+.course-card[draggable="true"]:active {
+  cursor: grabbing;
+}
+.calendar-cell.drag-over {
+  background: rgba(99, 102, 241, 0.2);
+  border: 2px dashed var(--accent);
+}
+
+@media print {
+  body {
+    background: #fff;
+    color: #000;
+  }
+  .sidebar, .stats-bar, .bottom-panels, .header {
+    display: none !important;
+  }
+  .container {
+    grid-template-columns: 1fr;
+    height: auto;
+    padding: 0;
+  }
+  .main-content {
+    padding: 0;
+  }
+  .calendar-wrapper {
+    border: none !important;
+    background: #fff !important;
+    box-shadow: none !important;
+  }
+  .calendar-title-bar {
+    border-bottom: 2px solid #000;
+  }
+  .calendar-title-bar h2 {
+    color: #000;
+  }
+  #btn-print {
+    display: none !important;
+  }
+  .calendar-grid {
+    background: #fff;
+  }
+  .calendar-header-cell, .calendar-time-label {
+    background: #f0f0f0 !important;
+    color: #000 !important;
+    border-right: 1px solid #ccc;
+    border-bottom: 1px solid #ccc;
+  }
+  .calendar-cell {
+    border-right: 1px solid #ccc;
+    border-bottom: 1px solid #ccc;
+  }
+  .course-card {
+    background: transparent !important;
+    border: 1px solid #333 !important;
+    box-shadow: none !important;
+    color: #000 !important;
+  }
+  .course-card .course-title {
+    color: #000 !important;
+  }
+  .course-card .course-details {
+    color: #333 !important;
+  }
+  .badge-sks, .badge-conflict {
+    color: #000 !important;
+    border: 1px solid #000 !important;
+    background: transparent !important;
   }
 }
