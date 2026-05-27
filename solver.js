@@ -287,7 +287,7 @@ async function simulatedAnnealing(graph, courses, slots, config, onStep) {
     if (currentPenalty < bestPenalty) {
       bestSchedule = deepCopy(currentSchedule);
       bestPenalty = currentPenalty;
-      bestConflicts = calculateFitness(currentSchedule, graph).conflicts;
+      bestConflicts = calculateFitness(currentSchedule, graph, courses, timeSlotsCount).conflicts;
     }
 
     // 4. Turunkan suhu (cooling schedule: geometric)
@@ -305,7 +305,7 @@ async function simulatedAnnealing(graph, courses, slots, config, onStep) {
         iter: iteration,
         T: T.toFixed(2),
         penalty: currentPenalty,
-        conflicts: calculateFitness(currentSchedule, graph).conflicts,
+        conflicts: calculateFitness(currentSchedule, graph, courses, timeSlotsCount).conflicts,
         moved: movedCourse,
         accepted: wasAccepted,
         deltaE,
@@ -320,7 +320,7 @@ async function simulatedAnnealing(graph, courses, slots, config, onStep) {
         iteration,
         temperature: T,
         penalty: currentPenalty,
-        conflicts: calculateFitness(currentSchedule, graph).conflicts,
+        conflicts: calculateFitness(currentSchedule, graph, courses, timeSlotsCount).conflicts,
         bestPenalty,
         bestConflicts,
         schedule: deepCopy(currentSchedule),

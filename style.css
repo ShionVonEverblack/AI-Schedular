@@ -469,11 +469,8 @@ body {
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   padding: 20px;
-  flex: 1;
-  min-height: 0;
   display: flex;
   flex-direction: column;
-  overflow-y: auto;
   transition: all 0.5s ease;
 }
 

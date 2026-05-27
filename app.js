@@ -321,6 +321,7 @@ function renderCalendar(schedule) {
       cell.dataset.time = timeIndex;
       
       // Drag & Drop Event Listeners
+      cell.addEventListener('dragenter', handleDragEnter);
       cell.addEventListener('dragover', handleDragOver);
       cell.addEventListener('dragleave', handleDragLeave);
       cell.addEventListener('drop', handleDrop);
@@ -353,7 +354,7 @@ function renderCalendar(schedule) {
     });
   });
 
-  drawGraph();
+  drawGraph(schedule);
 }
 
 function renderLegend() {
@@ -648,8 +649,12 @@ function hexToRgba(hex, alpha = 1) {
 // ============================================================
 
 function handleDragStart(e) {
-  e.dataTransfer.setData('text/plain', e.target.dataset.courseId);
+  e.dataTransfer.setData('text/plain', e.currentTarget.dataset.courseId);
   e.dataTransfer.effectAllowed = 'move';
+}
+
+function handleDragEnter(e) {
+  e.preventDefault();
 }
 
 function handleDragOver(e) {
@@ -707,7 +712,7 @@ function handleDrop(e) {
 // 14. GRAPH VISUALIZATION
 // ============================================================
 
-function drawGraph() {
+function drawGraph(activeSchedule = state.schedule) {
   const canvas = document.getElementById('conflict-canvas');
   if (!canvas) return;
   const ctx = canvas.getContext('2d');
@@ -741,7 +746,7 @@ function drawGraph() {
   ctx.lineWidth = 1.5;
   courses.forEach(course => {
     const p1 = positions[course.id];
-    const neighbors = graph[course.id] || [];
+    const neighbors = graph.get(course.id) || new Set();
     neighbors.forEach(neighborId => {
       // Draw edge only in one direction to avoid double drawing
       if (course.id < neighborId) {
@@ -764,7 +769,7 @@ function drawGraph() {
     let strokeStyle = '#666';
     
     // Highlight if scheduled
-    if (state.schedule && state.schedule[course.id]) {
+    if (activeSchedule && activeSchedule[course.id]) {
       fillStyle = course.color;
       strokeStyle = '#fff';
     }
