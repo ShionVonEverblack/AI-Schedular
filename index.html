@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="AI-Powered Auto-Scheduler — Penjadwalan Kuliah Otomatis menggunakan Graph Coloring dan Simulated Annealing" />
+  <title>AI Auto-Scheduler — Penjadwalan Kuliah</title>
+  <link rel="stylesheet" href="style.css" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📅</text></svg>" />
+</head>
+<body>
+  <div class="app">
+
+    <!-- ════════════════════════════════════════════════════════
+         HEADER
+         ════════════════════════════════════════════════════════ -->
+    <header class="header">
+      <div class="header-left">
+        <div class="header-icon">📅</div>
+        <div>
+          <h1>AI Auto-Scheduler</h1>
+          <span class="header-subtitle">Penjadwalan Kuliah Otomatis</span>
+        </div>
+      </div>
+      <div class="header-badges">
+        <span class="badge badge-accent">Teori Graf</span>
+        <span class="badge badge-accent">KDKA</span>
+        <span class="badge">Semester 2</span>
+      </div>
+    </header>
+
+    <!-- ════════════════════════════════════════════════════════
+         CONTAINER (Sidebar + Main)
+         ════════════════════════════════════════════════════════ -->
+    <div class="container">
+
+      <!-- ──────────── SIDEBAR ──────────── -->
+      <aside class="sidebar">
+
+        <!-- Panel: Mata Kuliah -->
+        <div class="panel">
+          <div class="panel-header">
+            <h3>📚 Mata Kuliah</h3>
+            <span class="count-badge" id="course-count">0</span>
+          </div>
+          <div class="item-list" id="course-list"></div>
+          <form class="add-form" id="form-add-course">
+            <input type="text" id="input-course-name" placeholder="Nama Mata Kuliah" required />
+            <div class="form-row">
+              <input type="text" id="input-lecturer" placeholder="Dosen" required />
+              <select id="input-sks">
+                <option value="2">2 SKS</option>
+                <option value="3" selected>3 SKS</option>
+                <option value="4">4 SKS</option>
+              </select>
+            </div>
+            <button type="submit" class="btn btn-add btn-sm">+ Tambah Matkul</button>
+          </form>
+        </div>
+
+        <!-- Panel: Ruangan -->
+        <div class="panel">
+          <div class="panel-header">
+            <h3>🏢 Ruangan</h3>
+            <span class="count-badge" id="room-count">0</span>
+          </div>
+          <div class="item-list" id="room-list"></div>
+          <form class="add-form" id="form-add-room">
+            <div class="form-row">
+              <input type="text" id="input-room" placeholder="Kode Ruangan" required />
+              <button type="submit" class="btn btn-add btn-sm">+ Tambah</button>
+            </div>
+          </form>
+        </div>
+
+        <!-- Panel: Aksi -->
+        <div class="panel actions-panel">
+          <button id="btn-preset" class="btn btn-secondary">📋 Load Preset</button>
+          <button id="btn-generate" class="btn btn-primary">⚡ Generate Jadwal</button>
+          <button id="btn-export" class="btn btn-secondary">💾 Export CSV</button>
+          <button id="btn-reset" class="btn btn-danger">🗑️ Reset Semua</button>
+        </div>
+
+      </aside>
+
+      <!-- ──────────── MAIN CONTENT ──────────── -->
+      <main class="main-content">
+
+        <!-- Calendar -->
+        <div class="calendar-wrapper" id="calendar-wrapper">
+          <div class="calendar-title-bar">
+            <h2>📅 Jadwal Kuliah</h2>
+            <div class="calendar-legend" id="calendar-legend"></div>
+          </div>
+          <div class="calendar-grid" id="calendar-grid">
+            <!-- Dibuat oleh app.js -->
+          </div>
+        </div>
+
+        <!-- Stats Bar -->
+        <div class="stats-bar">
+          <div class="stat-card">
+            <span class="stat-icon">🔥</span>
+            <div class="stat-info">
+              <span class="stat-value" id="stat-conflicts">—</span>
+              <span class="stat-label">Konflik</span>
+            </div>
+          </div>
+          <div class="stat-card">
+            <span class="stat-icon">🌡️</span>
+            <div class="stat-info">
+              <span class="stat-value" id="stat-temp">—</span>
+              <span class="stat-label">Suhu (T)</span>
+              <div class="temp-bar-container">
+                <div class="temp-bar" id="temp-bar"></div>
+              </div>
+            </div>
+          </div>
+          <div class="stat-card">
+            <span class="stat-icon">🔄</span>
+            <div class="stat-info">
+              <span class="stat-value" id="stat-iter">—</span>
+              <span class="stat-label">Iterasi</span>
+            </div>
+          </div>
+          <div class="stat-card">
+            <span class="stat-icon">📊</span>
+            <div class="stat-info">
+              <span class="stat-value" id="stat-fitness">—</span>
+              <span class="stat-label">Best Fitness</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Log Panel -->
+        <div class="log-panel">
+          <div class="log-header">
+            <h3>🖥️ Log Algoritma</h3>
+          </div>
+          <div class="log-content" id="log-content"></div>
+        </div>
+
+      </main>
+    </div>
+  </div>
+
+  <!-- Notification Container -->
+  <div id="notification-container"></div>
+
+  <!-- Scripts (urutan: data → graph → solver → app) -->
+  <script src="data.js"></script>
+  <script src="graph.js"></script>
+  <script src="solver.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
