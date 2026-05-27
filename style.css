@@ -103,7 +103,8 @@ body {
 .app {
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
 }
 
 /* ── Header ── */
@@ -176,12 +177,11 @@ body {
   background: rgba(99, 102, 241, 0.1);
 }
 
-/* ── Container (Sidebar + Main) ── */
 .container {
   display: grid;
   grid-template-columns: 300px 1fr;
   flex: 1;
-  overflow: hidden;
+  min-height: 0;
 }
 
 /* ============================================================
@@ -196,7 +196,6 @@ body {
   flex-direction: column;
   gap: 12px;
   backdrop-filter: blur(12px);
-  height: calc(100vh - 82px);
 }
 
 /* ── Panel ── */
@@ -460,7 +459,6 @@ body {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  height: calc(100vh - 82px);
 }
 
 /* ── Calendar Wrapper ── */
