@@ -1,2 +1,8 @@
 Hari,Waktu,Mata Kuliah,Dosen,SKS,Ruangan
-,,kDKA,E,3,
+Senin,08:00 – 10:00,Struktur Data,Dosen A,3,R101
+Senin,10:00 – 12:00,KDKA,Dosen C,3,R102
+Selasa,08:00 – 10:00,Arsikom,Dosen E,3,R101
+Rabu,08:00 – 10:00,Teori Graf,Dosen B,3,R104
+Kamis,10:00 – 12:00,Probstat,Dosen D,3,R102
+Jumat,08:00 – 10:00,Bahasa Inggris,Dosen F,2,R103
+Jumat,15:00 – 17:00,Agama Islam,Dosen G,2,R104
