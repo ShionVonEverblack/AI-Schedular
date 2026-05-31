@@ -43,6 +43,7 @@ function setupEventListeners() {
   document.getElementById('btn-export').addEventListener('click', exportCSV);
   document.getElementById('btn-reset').addEventListener('click', resetAll);
   document.getElementById('btn-print').addEventListener('click', () => window.print());
+  document.getElementById('btn-theme-toggle').addEventListener('click', toggleTheme);
   document.getElementById('form-add-course').addEventListener('submit', handleAddCourse);
   document.getElementById('form-add-room').addEventListener('submit', handleAddRoom);
   document.getElementById('form-add-timeslot').addEventListener('submit', handleAddTimeSlot);
@@ -50,6 +51,18 @@ function setupEventListeners() {
   window.addEventListener('resize', () => {
     if (state.conflictGraph) drawGraph();
   });
+}
+
+function toggleTheme() {
+  const currentTheme = document.documentElement.getAttribute('data-theme') || 'dark';
+  const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', newTheme);
+  localStorage.setItem('theme', newTheme);
+  document.getElementById('theme-icon').textContent = newTheme === 'dark' ? '🌓' : '☀️';
+  // Redraw graph if exists to update colors
+  if (state.schedule) {
+    drawGraph();
+  }
 }
 
 // ============================================================
@@ -757,36 +770,43 @@ function drawGraph(activeSchedule = state.schedule) {
     };
   });
   
-  // Draw edges
-  ctx.lineWidth = 1.5;
-  courses.forEach(course => {
-    const p1 = positions[course.id];
-    const neighbors = graph.get(course.id) || new Set();
-    neighbors.forEach(neighborId => {
-      // Draw edge only in one direction to avoid double drawing
-      if (course.id < neighborId) {
-        const p2 = positions[neighborId];
-        if (p1 && p2) {
-          ctx.beginPath();
-          ctx.moveTo(p1.x, p1.y);
-          ctx.lineTo(p2.x, p2.y);
-          ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
-          ctx.stroke();
+    const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+    const edgeColor = isLight ? 'rgba(0, 0, 0, 0.15)' : 'rgba(255, 255, 255, 0.15)';
+    
+    // Draw edges
+    ctx.lineWidth = 1.5;
+    courses.forEach(course => {
+      const p1 = positions[course.id];
+      const neighbors = graph.get(course.id) || new Set();
+      neighbors.forEach(neighborId => {
+        // Draw edge only in one direction to avoid double drawing
+        if (course.id < neighborId) {
+          const p2 = positions[neighborId];
+          if (p1 && p2) {
+            ctx.beginPath();
+            ctx.moveTo(p1.x, p1.y);
+            ctx.lineTo(p2.x, p2.y);
+            ctx.strokeStyle = edgeColor;
+            ctx.stroke();
+          }
         }
-      }
+      });
     });
-  });
   
   // Draw nodes
+  const isLightMode = document.documentElement.getAttribute('data-theme') === 'light';
+  const emptyNodeFill = isLightMode ? '#e2e8f0' : '#333';
+  const emptyNodeStroke = isLightMode ? '#94a3b8' : '#666';
+
   courses.forEach(course => {
     const p = positions[course.id];
-    let fillStyle = '#333';
-    let strokeStyle = '#666';
+    let fillStyle = emptyNodeFill;
+    let strokeStyle = emptyNodeStroke;
     
     // Highlight if scheduled
     if (activeSchedule && activeSchedule[course.id]) {
       fillStyle = course.color;
-      strokeStyle = '#fff';
+      strokeStyle = isLightMode ? '#fff' : '#fff';
     }
     
     ctx.beginPath();
@@ -798,7 +818,7 @@ function drawGraph(activeSchedule = state.schedule) {
     ctx.stroke();
     
     // Node Label
-    ctx.fillStyle = '#fff';
+    ctx.fillStyle = (activeSchedule && activeSchedule[course.id]) ? '#fff' : (isLightMode ? '#334155' : '#fff');
     ctx.font = 'bold 10px Arial';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';

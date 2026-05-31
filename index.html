@@ -7,6 +7,11 @@
   <title>AI Auto-Scheduler — Penjadwalan Kuliah</title>
   <link rel="stylesheet" href="style.css" />
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📅</text></svg>" />
+  <script>
+    // Set theme immediately to avoid flash
+    const savedTheme = localStorage.getItem('theme') || 'dark';
+    document.documentElement.setAttribute('data-theme', savedTheme);
+  </script>
 </head>
 <body>
   <div class="app">
@@ -21,6 +26,11 @@
           <h1>AI Auto-Scheduler</h1>
           <span class="header-subtitle">Penjadwalan Kuliah Otomatis</span>
         </div>
+      </div>
+      <div class="header-right">
+        <button id="btn-theme-toggle" class="btn btn-secondary" title="Ganti Mode Terang/Gelap">
+          <span id="theme-icon">🌓</span> Mode
+        </button>
       </div>
     </header>
 

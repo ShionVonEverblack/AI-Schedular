@@ -8,12 +8,12 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
 
 :root {
-  /* Base Colors */
   --bg-primary: #000000;
   --bg-secondary: #0a0a0a;
   --bg-surface: #111111;
   --bg-card: #161616;
   --bg-hover: rgba(255, 255, 255, 0.06);
+  --header-bg: rgba(0, 0, 0, 0.6);
 
   /* Accents */
   --accent: #5e6ad2;
@@ -44,6 +44,36 @@
   --shadow-sm: 0 4px 12px rgba(0, 0, 0, 0.5);
   --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.6);
   --shadow-glow: 0 0 40px rgba(94, 106, 210, 0.15);
+}
+
+[data-theme="light"] {
+  --bg-primary: #f8fafc;
+  --bg-secondary: #ffffff;
+  --bg-surface: #f1f5f9;
+  --bg-card: #ffffff;
+  --bg-hover: rgba(0, 0, 0, 0.04);
+  --header-bg: rgba(255, 255, 255, 0.85);
+
+  /* Accents */
+  --accent: #4f46e5;
+  --accent-light: #6366f1;
+  --accent-glow: rgba(79, 70, 229, 0.2);
+  --gradient-primary: linear-gradient(180deg, #6366f1 0%, #4f46e5 100%);
+  --gradient-bg: radial-gradient(ellipse at 50% -20%, rgba(79, 70, 229, 0.1) 0%, transparent 60%);
+
+  /* Typography */
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #64748b;
+
+  /* Borders & Geometry */
+  --border: rgba(0, 0, 0, 0.1);
+  --border-hover: rgba(0, 0, 0, 0.2);
+  
+  /* Shadows */
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.08);
+  --shadow-glow: 0 0 30px rgba(79, 70, 229, 0.15);
 }
 
 /* ============================================================
@@ -100,7 +130,7 @@ body {
 
 .header {
   padding: 16px 32px;
-  background: rgba(0, 0, 0, 0.6);
+  background: var(--header-bg);
   backdrop-filter: blur(20px);
   border-bottom: 1px solid var(--border);
   display: flex;
@@ -130,7 +160,7 @@ body {
 .header h1 {
   font-size: 1.15rem;
   font-weight: 700;
-  color: #ffffff;
+  color: var(--text-primary);
   letter-spacing: -0.5px;
 }
 
