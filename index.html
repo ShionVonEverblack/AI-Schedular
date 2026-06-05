@@ -59,11 +59,14 @@
                 <option value="4">4 SKS</option>
               </select>
             </div>
-            <select id="input-preference" style="margin-bottom: 4px;">
-              <option value="none">Tanpa Preferensi Waktu</option>
-              <option value="avoid-morning">Hindari Pagi (Slot Awal)</option>
-              <option value="avoid-evening">Hindari Sore (Slot Akhir)</option>
-            </select>
+            <div class="form-row">
+              <input type="number" id="input-students" placeholder="Jml Mahasiswa" min="1" value="30" required />
+              <select id="input-preference">
+                <option value="none">Tanpa Preferensi</option>
+                <option value="avoid-morning">Hindari Pagi</option>
+                <option value="avoid-evening">Hindari Sore</option>
+              </select>
+            </div>
             <button type="submit" class="btn btn-add btn-sm">+ Tambah Matkul</button>
           </form>
         </div>
@@ -78,6 +81,7 @@
           <form class="add-form" id="form-add-room">
             <div class="form-row">
               <input type="text" id="input-room" placeholder="Kode Ruangan" required />
+              <input type="number" id="input-room-capacity" placeholder="Kapasitas" min="1" value="40" required />
               <button type="submit" class="btn btn-add btn-sm">+ Tambah</button>
             </div>
           </form>
@@ -104,7 +108,10 @@
         <div class="panel actions-panel">
           <button id="btn-preset" class="btn btn-secondary">📋 Load Preset</button>
           <button id="btn-generate" class="btn btn-primary">⚡ Generate Jadwal</button>
-          <button id="btn-export" class="btn btn-secondary">💾 Export CSV</button>
+          <div class="form-row" style="gap: 6px;">
+            <button id="btn-export" class="btn btn-secondary" style="flex:1;">💾 CSV</button>
+            <button id="btn-export-png" class="btn btn-secondary" style="flex:1;">📸 PNG</button>
+          </div>
           <button id="btn-reset" class="btn btn-danger">🗑️ Reset Semua</button>
         </div>
 
@@ -189,6 +196,9 @@
 
   <!-- Notification Container -->
   <div id="notification-container"></div>
+
+  <!-- html2canvas CDN for PNG export -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 
   <!-- Scripts (urutan: data → graph → solver → app) -->
   <script src="data.js"></script>

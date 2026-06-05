@@ -32,7 +32,7 @@
 //
 // "Warna" di sini = kombinasi (hari, waktu, ruangan)
 
-function greedyColoring(graph, courses, slots) {
+function greedyColoring(graph, courses, slots, roomCapacities) {
   const schedule = {}; // courseId → { dayIndex, timeIndex, room }
 
   // Urutkan: matkul dengan paling banyak konflik di-assign duluan
@@ -41,11 +41,25 @@ function greedyColoring(graph, courses, slots) {
     (a, b) => graph.getDegree(b.id) - graph.getDegree(a.id)
   );
 
+  // Build course lookup for student count
+  const courseLookup = {};
+  for (const c of courses) {
+    courseLookup[c.id] = c;
+  }
+
   for (const course of sorted) {
     let assigned = false;
 
     for (const slot of slots) {
       let conflict = false;
+
+      // Cek kapasitas ruangan vs jumlah mahasiswa
+      if (roomCapacities && course.students) {
+        const roomCap = roomCapacities[slot.room];
+        if (roomCap !== undefined && course.students > roomCap) {
+          continue; // Skip slot ini, ruangan terlalu kecil
+        }
+      }
 
       // Cek apakah slot ini bentrok dengan tetangga di graf konflik
       // Tetangga = matkul yang TIDAK BOLEH bersamaan
@@ -101,8 +115,10 @@ function greedyColoring(graph, courses, slots) {
 // Jenis konflik:
 //   - Hard: Matkul yang terhubung di graf konflik berada di waktu sama → +10
 //   - Hard: Dua matkul di ruangan yang sama pada waktu yang sama → +10
+//   - Hard: Jumlah mahasiswa > kapasitas ruangan → +10
+//   - Soft: Preferensi waktu dilanggar → +2
 
-function calculateFitness(schedule, graph, courses, timeSlotsCount) {
+function calculateFitness(schedule, graph, courses, timeSlotsCount, roomCapacities) {
   // Buat lookup table untuk akses preferensi cepat
   const courseLookup = {};
   for (const c of courses) {
@@ -139,6 +155,15 @@ function calculateFitness(schedule, graph, courses, timeSlotsCount) {
       }
       if (course.preference === 'avoid-evening' && slot.timeIndex === timeSlotsCount - 1) {
         totalPenalty += 2; // Penalti ringan
+      }
+    }
+
+    // Hard Constraint: Kapasitas ruangan
+    if (roomCapacities && course && course.students) {
+      const roomCap = roomCapacities[slot.room];
+      if (roomCap !== undefined && course.students > roomCap) {
+        totalPenalty += 10;
+        hardConflicts++;
       }
     }
   }
@@ -181,7 +206,7 @@ function getNeighborState(schedule, slots) {
 //   animSpeed    : Kecepatan animasi (ms per frame)
 //   onStep       : Callback untuk update UI setiap beberapa iterasi
 
-async function simulatedAnnealing(graph, courses, slots, config, onStep) {
+async function simulatedAnnealing(graph, courses, slots, config, onStep, roomCapacities) {
   const {
     T_init = 100,
     T_min = 0.01,
@@ -195,8 +220,8 @@ async function simulatedAnnealing(graph, courses, slots, config, onStep) {
   const timeSlotsCount = maxTimeIndex + 1;
 
   // ── Solusi awal dari Greedy Graph Coloring ──
-  let currentSchedule = greedyColoring(graph, courses, slots);
-  let currentResult = calculateFitness(currentSchedule, graph, courses, timeSlotsCount);
+  let currentSchedule = greedyColoring(graph, courses, slots, roomCapacities);
+  let currentResult = calculateFitness(currentSchedule, graph, courses, timeSlotsCount, roomCapacities);
   let currentPenalty = currentResult.penalty;
 
   let bestSchedule = deepCopy(currentSchedule);
@@ -237,7 +262,7 @@ async function simulatedAnnealing(graph, courses, slots, config, onStep) {
       currentSchedule,
       slots
     );
-    const neighborResult = calculateFitness(neighborSchedule, graph, courses, timeSlotsCount);
+    const neighborResult = calculateFitness(neighborSchedule, graph, courses, timeSlotsCount, roomCapacities);
     const neighborPenalty = neighborResult.penalty;
 
     // 2. Hitung ΔE = fitness(neighbor) - fitness(current)
@@ -280,7 +305,7 @@ async function simulatedAnnealing(graph, courses, slots, config, onStep) {
     if (currentPenalty < bestPenalty) {
       bestSchedule = deepCopy(currentSchedule);
       bestPenalty = currentPenalty;
-      bestConflicts = calculateFitness(currentSchedule, graph, courses, timeSlotsCount).conflicts;
+      bestConflicts = calculateFitness(currentSchedule, graph, courses, timeSlotsCount, roomCapacities).conflicts;
     }
 
     // 4. Turunkan suhu (cooling schedule: geometric)
@@ -298,7 +323,7 @@ async function simulatedAnnealing(graph, courses, slots, config, onStep) {
         iter: iteration,
         T: T.toFixed(2),
         penalty: currentPenalty,
-        conflicts: calculateFitness(currentSchedule, graph, courses, timeSlotsCount).conflicts,
+        conflicts: calculateFitness(currentSchedule, graph, courses, timeSlotsCount, roomCapacities).conflicts,
         moved: movedCourse,
         accepted: wasAccepted,
         deltaE,
@@ -313,7 +338,7 @@ async function simulatedAnnealing(graph, courses, slots, config, onStep) {
         iteration,
         temperature: T,
         penalty: currentPenalty,
-        conflicts: calculateFitness(currentSchedule, graph, courses, timeSlotsCount).conflicts,
+        conflicts: calculateFitness(currentSchedule, graph, courses, timeSlotsCount, roomCapacities).conflicts,
         bestPenalty,
         bestConflicts,
         schedule: deepCopy(currentSchedule),

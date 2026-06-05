@@ -13,10 +13,10 @@
 const DAYS = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat'];
 
 const TIME_SLOTS = [
-  { id: 0, label: '08:00 – 10:00', start: '08:00', end: '10:00' },
-  { id: 1, label: '10:00 – 12:00', start: '10:00', end: '12:00' },
-  { id: 2, label: '13:00 – 15:00', start: '13:00', end: '15:00' },
-  { id: 3, label: '15:00 – 17:00', start: '15:00', end: '17:00' },
+  { id: 0, label: '08:00 – 10:00', start: '08:00', end: '10:00', locked: false },
+  { id: 1, label: '10:00 – 12:00', start: '10:00', end: '12:00', locked: false },
+  { id: 2, label: '13:00 – 15:00', start: '13:00', end: '15:00', locked: false },
+  { id: 3, label: '15:00 – 17:00', start: '15:00', end: '17:00', locked: false },
 ];
 
 // ============================================================
@@ -39,37 +39,43 @@ const COURSE_COLORS = [
 ];
 
 // ============================================================
-// 3. DATA PRESET — RUANGAN
+// 3. DATA PRESET — RUANGAN (dengan kapasitas)
 // ============================================================
 
-const PRESET_ROOMS = ['R101', 'R102', 'R103', 'R104'];
+const PRESET_ROOMS = [
+  { name: 'R101', capacity: 40 },
+  { name: 'R102', capacity: 35 },
+  { name: 'R103', capacity: 50 },
+  { name: 'R104', capacity: 30 },
+];
 
 // ============================================================
-// 4. DATA PRESET — MATA KULIAH SEMESTER 2
+// 4. DATA PRESET — MATA KULIAH SEMESTER 2 (dengan jumlah mahasiswa)
 // ============================================================
 
 const PRESET_COURSES = [
-  { id: 'MK01', name: 'Struktur Data',        sks: 3, lecturer: 'Dosen A', semester: 2, preference: 'none' },
-  { id: 'MK02', name: 'Teori Graf',            sks: 3, lecturer: 'Dosen B', semester: 2, preference: 'none' },
-  { id: 'MK03', name: 'KDKA',                  sks: 3, lecturer: 'Dosen C', semester: 2, preference: 'avoid-morning' },
-  { id: 'MK04', name: 'Probstat',              sks: 3, lecturer: 'Dosen D', semester: 2, preference: 'avoid-evening' },
-  { id: 'MK05', name: 'Arsikom',               sks: 3, lecturer: 'Dosen E', semester: 2, preference: 'none' },
-  { id: 'MK06', name: 'Bahasa Inggris',        sks: 2, lecturer: 'Dosen F', semester: 2, preference: 'none' },
-  { id: 'MK07', name: 'Agama Islam',           sks: 2, lecturer: 'Dosen G', semester: 2, preference: 'none' },
+  { id: 'MK01', name: 'Struktur Data',        sks: 3, lecturer: 'Dosen A', semester: 2, preference: 'none', students: 35 },
+  { id: 'MK02', name: 'Teori Graf',            sks: 3, lecturer: 'Dosen B', semester: 2, preference: 'none', students: 30 },
+  { id: 'MK03', name: 'KDKA',                  sks: 3, lecturer: 'Dosen C', semester: 2, preference: 'avoid-morning', students: 40 },
+  { id: 'MK04', name: 'Probstat',              sks: 3, lecturer: 'Dosen D', semester: 2, preference: 'avoid-evening', students: 45 },
+  { id: 'MK05', name: 'Arsikom',               sks: 3, lecturer: 'Dosen E', semester: 2, preference: 'none', students: 38 },
+  { id: 'MK06', name: 'Bahasa Inggris',        sks: 2, lecturer: 'Dosen F', semester: 2, preference: 'none', students: 25 },
+  { id: 'MK07', name: 'Agama Islam',           sks: 2, lecturer: 'Dosen G', semester: 2, preference: 'none', students: 50 },
 ];
 
 // ============================================================
 // 5. FUNGSI: Generate Semua Slot yang Tersedia
 // ============================================================
 // Setiap slot = kombinasi (hari, waktu, ruangan)
-// Total = 5 hari × 4 waktu × 4 ruangan = 80 slot
+// Slot dengan locked=true akan difilter di app.js sebelum dipanggil
 
-function generateAllSlots(rooms, timeSlots = TIME_SLOTS) {
+function generateAllSlots(rooms, timeSlots) {
   const slots = [];
   for (let d = 0; d < DAYS.length; d++) {
     for (let t = 0; t < timeSlots.length; t++) {
       for (const room of rooms) {
-        slots.push({ dayIndex: d, timeIndex: t, room });
+        const roomName = typeof room === 'object' ? room.name : room;
+        slots.push({ dayIndex: d, timeIndex: t, room: roomName });
       }
     }
   }

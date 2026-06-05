@@ -871,7 +871,110 @@ body {
 }
 
 /* ============================================================
-   12. PRINT MEDIA
+   12. INLINE EDIT, LOCKED SLOTS, CAPACITY, TOUCH
+   ============================================================ */
+
+/* Icon buttons (edit/lock) */
+.btn-icon {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 0.75rem;
+  padding: 2px 4px;
+  border-radius: var(--radius-sm);
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+  opacity: 0.5;
+}
+
+.btn-icon:hover {
+  opacity: 1;
+  background: var(--bg-hover);
+}
+
+.btn-lock {
+  opacity: 0.7;
+}
+
+/* Inline edit */
+.edit-inline {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+}
+
+.edit-input {
+  padding: 5px 8px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--accent);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font-size: 0.75rem;
+  font-family: inherit;
+  outline: none;
+  width: 100%;
+}
+
+.edit-input:focus {
+  box-shadow: 0 0 0 2px rgba(94, 106, 210, 0.2);
+}
+
+/* Locked timeslot item in sidebar */
+.timeslot-locked {
+  opacity: 0.5;
+  text-decoration: line-through;
+  background: rgba(239, 68, 68, 0.05) !important;
+  border-color: rgba(239, 68, 68, 0.15) !important;
+}
+
+/* Locked time label in calendar */
+.calendar-time-locked {
+  background: repeating-linear-gradient(
+    -45deg,
+    var(--bg-surface),
+    var(--bg-surface) 4px,
+    rgba(239, 68, 68, 0.06) 4px,
+    rgba(239, 68, 68, 0.06) 8px
+  ) !important;
+  color: var(--danger) !important;
+  font-size: 0.65rem !important;
+}
+
+/* Locked cell in calendar */
+.calendar-cell-locked {
+  background: repeating-linear-gradient(
+    -45deg,
+    var(--bg-primary),
+    var(--bg-primary) 6px,
+    rgba(255,255,255,0.02) 6px,
+    rgba(255,255,255,0.02) 12px
+  ) !important;
+  pointer-events: none;
+  opacity: 0.4;
+}
+
+/* Capacity warning on course card */
+.course-card.capacity-warning {
+  border-color: var(--warning) !important;
+  border-left-color: var(--warning) !important;
+  animation: warningPulse 2s ease infinite;
+}
+
+@keyframes warningPulse {
+  0%, 100% { box-shadow: 0 2px 6px rgba(0,0,0,0.4); }
+  50% { box-shadow: 0 0 0 2px var(--warning), 0 4px 12px rgba(245, 158, 11, 0.3); }
+}
+
+/* Touch drag ghost */
+.touch-ghost {
+  transition: none !important;
+  animation: none !important;
+  border: 2px solid var(--accent) !important;
+}
+
+/* ============================================================
+   13. PRINT MEDIA
    ============================================================ */
 @media print {
   body { background: #fff !important; color: #000 !important; }

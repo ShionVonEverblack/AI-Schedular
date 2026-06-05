@@ -12,7 +12,7 @@
 
 const state = {
   courses: [],
-  rooms: [],
+  rooms: [],       // Array of { name, capacity }
   timeSlots: [],
   schedule: null,
   conflictGraph: null,
@@ -28,19 +28,46 @@ const state = {
 document.addEventListener('DOMContentLoaded', init);
 
 function init() {
-  state.timeSlots = TIME_SLOTS.map(ts => ({ ...ts }));
-  state.nextTimeSlotId = state.timeSlots.length + 1;
+  // Try to load saved state from localStorage
+  const loaded = loadState();
+  
+  if (!loaded) {
+    state.timeSlots = TIME_SLOTS.map(ts => ({ ...ts }));
+    state.nextTimeSlotId = state.timeSlots.length + 1;
+  }
+
   setupEventListeners();
-  renderCalendarEmpty();
-  renderStats(null);
-  renderTimeSlotList();
-  addLog('Aplikasi siap. Klik "Load Preset" atau tambahkan data manual.', 'info');
+  
+  if (loaded && state.courses.length > 0) {
+    renderCourseList();
+    renderRoomList();
+    renderTimeSlotList();
+    renderLegend();
+    if (state.schedule) {
+      renderCalendar(state.schedule);
+      renderStats({ conflicts: 0, temperature: 0, iteration: 'Saved', bestPenalty: 0 });
+    } else {
+      renderCalendarEmpty();
+      renderStats(null);
+    }
+    addLog('📂 Data sebelumnya berhasil dimuat dari penyimpanan lokal.', 'success');
+  } else {
+    renderCalendarEmpty();
+    renderStats(null);
+    renderTimeSlotList();
+    addLog('Aplikasi siap. Klik "Load Preset" atau tambahkan data manual.', 'info');
+  }
+
+  // Set theme icon on load
+  const currentTheme = document.documentElement.getAttribute('data-theme') || 'dark';
+  document.getElementById('theme-icon').textContent = currentTheme === 'dark' ? '🌓' : '☀️';
 }
 
 function setupEventListeners() {
   document.getElementById('btn-preset').addEventListener('click', loadPreset);
   document.getElementById('btn-generate').addEventListener('click', generateSchedule);
   document.getElementById('btn-export').addEventListener('click', exportCSV);
+  document.getElementById('btn-export-png').addEventListener('click', exportPNG);
   document.getElementById('btn-reset').addEventListener('click', resetAll);
   document.getElementById('btn-print').addEventListener('click', () => window.print());
   document.getElementById('btn-theme-toggle').addEventListener('click', toggleTheme);
@@ -59,9 +86,45 @@ function toggleTheme() {
   document.documentElement.setAttribute('data-theme', newTheme);
   localStorage.setItem('theme', newTheme);
   document.getElementById('theme-icon').textContent = newTheme === 'dark' ? '🌓' : '☀️';
-  // Redraw graph if exists to update colors
-  if (state.schedule) {
+  if (state.conflictGraph) {
     drawGraph();
+  }
+}
+
+// ============================================================
+// 2B. AUTO-SAVE / LOAD STATE (LocalStorage)
+// ============================================================
+
+function saveState() {
+  try {
+    const data = {
+      courses: state.courses,
+      rooms: state.rooms,
+      timeSlots: state.timeSlots,
+      schedule: state.schedule,
+      nextCourseId: state.nextCourseId,
+      nextTimeSlotId: state.nextTimeSlotId,
+    };
+    localStorage.setItem('scheduler-state', JSON.stringify(data));
+  } catch (e) {
+    // Silent fail if localStorage is full
+  }
+}
+
+function loadState() {
+  try {
+    const raw = localStorage.getItem('scheduler-state');
+    if (!raw) return false;
+    const data = JSON.parse(raw);
+    if (data.courses) state.courses = data.courses;
+    if (data.rooms) state.rooms = data.rooms;
+    if (data.timeSlots) state.timeSlots = data.timeSlots;
+    if (data.schedule) state.schedule = data.schedule;
+    if (data.nextCourseId) state.nextCourseId = data.nextCourseId;
+    if (data.nextTimeSlotId) state.nextTimeSlotId = data.nextTimeSlotId;
+    return true;
+  } catch (e) {
+    return false;
   }
 }
 
@@ -74,7 +137,7 @@ function loadPreset() {
     ...c,
     color: COURSE_COLORS[i % COURSE_COLORS.length],
   }));
-  state.rooms = [...PRESET_ROOMS];
+  state.rooms = PRESET_ROOMS.map(r => ({ ...r }));
   state.timeSlots = TIME_SLOTS.map(ts => ({ ...ts }));
   state.nextTimeSlotId = state.timeSlots.length + 1;
   state.schedule = null;
@@ -86,6 +149,7 @@ function loadPreset() {
   renderCalendarEmpty();
   renderLegend();
   renderStats(null);
+  saveState();
   showNotification('Data preset Semester 2 berhasil dimuat!', 'success');
   addLog('📋 Loaded preset: 7 mata kuliah, 4 ruangan, 4 jam kuliah', 'info');
 }
@@ -101,21 +165,26 @@ function handleAddCourse(e) {
   const lecturerInput = document.getElementById('input-lecturer');
   const sksSelect = document.getElementById('input-sks');
   const prefSelect = document.getElementById('input-preference');
+  const studentsInput = document.getElementById('input-students');
 
   const name = nameInput.value.trim();
   const lecturer = lecturerInput.value.trim();
   const sks = parseInt(sksSelect.value) || 3;
   const preference = prefSelect ? prefSelect.value : 'none';
+  const students = parseInt(studentsInput.value) || 30;
 
   if (!name || !lecturer) return;
 
   const id = 'MK' + String(state.nextCourseId++).padStart(2, '0');
   const color = COURSE_COLORS[state.courses.length % COURSE_COLORS.length];
 
-  state.courses.push({ id, name, lecturer, sks, semester: 2, color, preference });
+  state.courses.push({ id, name, lecturer, sks, semester: 2, color, preference, students });
   renderCourseList();
   renderLegend();
   e.target.reset();
+  // Reset default value for students
+  document.getElementById('input-students').value = '30';
+  saveState();
   showNotification(`"${name}" ditambahkan!`, 'success');
 }
 
@@ -128,7 +197,55 @@ function removeCourse(index) {
   });
   renderCourseList();
   renderLegend();
+  saveState();
   showNotification(`"${name}" dihapus`, 'info');
+}
+
+// ============================================================
+// 4B. INLINE EDIT — Course
+// ============================================================
+
+function startEditCourse(index) {
+  const course = state.courses[index];
+  const container = document.getElementById('course-list');
+  const item = container.children[index];
+  if (!item) return;
+  
+  item.innerHTML = `
+    <div class="edit-inline">
+      <input type="text" class="edit-input" id="edit-course-name-${index}" value="${course.name}" />
+      <input type="text" class="edit-input" id="edit-course-lecturer-${index}" value="${course.lecturer}" placeholder="Dosen" />
+      <div class="form-row" style="gap:4px; margin-top:4px;">
+        <input type="number" class="edit-input" id="edit-course-students-${index}" value="${course.students || 30}" min="1" style="width:60px;" />
+        <button class="btn btn-sm btn-primary" onclick="confirmEditCourse(${index})">✓</button>
+        <button class="btn btn-sm btn-secondary" onclick="renderCourseList()">✕</button>
+      </div>
+    </div>
+  `;
+  document.getElementById(`edit-course-name-${index}`).focus();
+  document.getElementById(`edit-course-name-${index}`).addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') confirmEditCourse(index);
+    if (e.key === 'Escape') renderCourseList();
+  });
+}
+
+function confirmEditCourse(index) {
+  const name = document.getElementById(`edit-course-name-${index}`).value.trim();
+  const lecturer = document.getElementById(`edit-course-lecturer-${index}`).value.trim();
+  const students = parseInt(document.getElementById(`edit-course-students-${index}`).value) || 30;
+  
+  if (!name || !lecturer) {
+    showNotification('Nama dan dosen tidak boleh kosong!', 'warning');
+    return;
+  }
+  
+  state.courses[index].name = name;
+  state.courses[index].lecturer = lecturer;
+  state.courses[index].students = students;
+  renderCourseList();
+  renderLegend();
+  saveState();
+  showNotification(`Mata kuliah berhasil diperbarui.`, 'success');
 }
 
 // ============================================================
@@ -139,29 +256,77 @@ function handleAddRoom(e) {
   e.preventDefault();
 
   const roomInput = document.getElementById('input-room');
-  const room = roomInput.value.trim().toUpperCase();
+  const capacityInput = document.getElementById('input-room-capacity');
+  const roomName = roomInput.value.trim().toUpperCase();
+  const capacity = parseInt(capacityInput.value) || 40;
 
-  if (!room) return;
-  if (state.rooms.includes(room)) {
-    showNotification(`Ruangan "${room}" sudah ada!`, 'warning');
+  if (!roomName) return;
+  if (state.rooms.some(r => r.name === roomName)) {
+    showNotification(`Ruangan "${roomName}" sudah ada!`, 'warning');
     return;
   }
 
-  state.rooms.push(room);
+  state.rooms.push({ name: roomName, capacity });
   renderRoomList();
   e.target.reset();
-  showNotification(`Ruangan "${room}" ditambahkan!`, 'success');
+  document.getElementById('input-room-capacity').value = '40';
+  saveState();
+  showNotification(`Ruangan "${roomName}" (${capacity} kursi) ditambahkan!`, 'success');
 }
 
 function removeRoom(index) {
   const room = state.rooms[index];
   state.rooms.splice(index, 1);
   renderRoomList();
-  showNotification(`Ruangan "${room}" dihapus`, 'info');
+  saveState();
+  showNotification(`Ruangan "${room.name}" dihapus`, 'info');
 }
 
 // ============================================================
-// 5B. TIMESLOT MANAGEMENT
+// 5B. INLINE EDIT — Room
+// ============================================================
+
+function startEditRoom(index) {
+  const room = state.rooms[index];
+  const container = document.getElementById('room-list');
+  const item = container.children[index];
+  if (!item) return;
+  
+  item.innerHTML = `
+    <div class="edit-inline">
+      <div class="form-row" style="gap:4px;">
+        <input type="text" class="edit-input" id="edit-room-name-${index}" value="${room.name}" />
+        <input type="number" class="edit-input" id="edit-room-cap-${index}" value="${room.capacity}" min="1" style="width:60px;" />
+        <button class="btn btn-sm btn-primary" onclick="confirmEditRoom(${index})">✓</button>
+        <button class="btn btn-sm btn-secondary" onclick="renderRoomList()">✕</button>
+      </div>
+    </div>
+  `;
+  document.getElementById(`edit-room-name-${index}`).focus();
+  document.getElementById(`edit-room-name-${index}`).addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') confirmEditRoom(index);
+    if (e.key === 'Escape') renderRoomList();
+  });
+}
+
+function confirmEditRoom(index) {
+  const name = document.getElementById(`edit-room-name-${index}`).value.trim().toUpperCase();
+  const capacity = parseInt(document.getElementById(`edit-room-cap-${index}`).value) || 40;
+  
+  if (!name) {
+    showNotification('Nama ruangan tidak boleh kosong!', 'warning');
+    return;
+  }
+  
+  state.rooms[index].name = name;
+  state.rooms[index].capacity = capacity;
+  renderRoomList();
+  saveState();
+  showNotification(`Ruangan berhasil diperbarui.`, 'success');
+}
+
+// ============================================================
+// 5C. TIMESLOT MANAGEMENT
 // ============================================================
 
 function handleAddTimeSlot(e) {
@@ -188,7 +353,7 @@ function handleAddTimeSlot(e) {
   }
 
   const id = state.nextTimeSlotId++;
-  state.timeSlots.push({ id, label, start, end });
+  state.timeSlots.push({ id, label, start, end, locked: false });
 
   // Sort chronologically by start time
   state.timeSlots.sort((a, b) => a.start.localeCompare(b.start));
@@ -201,6 +366,7 @@ function handleAddTimeSlot(e) {
   renderStats(null);
 
   e.target.reset();
+  saveState();
   showNotification(`Jam kuliah "${label}" ditambahkan!`, 'success');
   addLog(`🕒 Tambah jam kuliah: ${label}`, 'success');
 }
@@ -215,9 +381,27 @@ function removeTimeSlot(index) {
   state.schedule = null;
   renderCalendarEmpty();
   renderStats(null);
+  saveState();
 
   showNotification(`Jam kuliah "${label}" dihapus`, 'info');
   addLog(`🗑️ Hapus jam kuliah: ${label}`, 'info');
+}
+
+function toggleTimeslotLock(index) {
+  state.timeSlots[index].locked = !state.timeSlots[index].locked;
+  const label = state.timeSlots[index].label;
+  const isLocked = state.timeSlots[index].locked;
+  
+  renderTimeSlotList();
+  saveState();
+  
+  if (isLocked) {
+    showNotification(`🔒 "${label}" dikunci (istirahat)`, 'info');
+    addLog(`🔒 Jam "${label}" dikunci sebagai waktu istirahat`, 'info');
+  } else {
+    showNotification(`🔓 "${label}" dibuka kembali`, 'info');
+    addLog(`🔓 Jam "${label}" dibuka kembali`, 'info');
+  }
 }
 
 // ============================================================
@@ -235,8 +419,9 @@ function renderCourseList() {
       <div class="course-color" style="background: ${course.color}; box-shadow: 0 0 6px ${course.color}40;"></div>
       <div class="course-info">
         <span class="course-name">${course.name}</span>
-        <span class="course-detail">${course.lecturer} · ${course.sks} SKS</span>
+        <span class="course-detail">${course.lecturer} · ${course.sks} SKS · ${course.students || '?'} mhs</span>
       </div>
+      <button class="btn-icon" title="Edit" onclick="startEditCourse(${index})">✏️</button>
       <button class="btn-remove" title="Hapus">×</button>
     `;
     el.querySelector('.btn-remove').addEventListener('click', () => removeCourse(index));
@@ -254,7 +439,8 @@ function renderRoomList() {
     const el = document.createElement('div');
     el.className = 'room-item';
     el.innerHTML = `
-      <span>🚪 ${room}</span>
+      <span>🚪 ${room.name} <small style="color:var(--text-muted);">(${room.capacity} kursi)</small></span>
+      <button class="btn-icon" title="Edit" onclick="startEditRoom(${index})">✏️</button>
       <button class="btn-remove" title="Hapus">×</button>
     `;
     el.querySelector('.btn-remove').addEventListener('click', () => removeRoom(index));
@@ -270,9 +456,10 @@ function renderTimeSlotList() {
 
   state.timeSlots.forEach((slot, index) => {
     const el = document.createElement('div');
-    el.className = 'timeslot-item';
+    el.className = 'timeslot-item' + (slot.locked ? ' timeslot-locked' : '');
     el.innerHTML = `
-      <span>⏰ ${slot.label}</span>
+      <span>${slot.locked ? '🔒' : '⏰'} ${slot.label}</span>
+      <button class="btn-icon btn-lock" title="${slot.locked ? 'Buka Kunci' : 'Kunci (Istirahat)'}" onclick="toggleTimeslotLock(${index})">${slot.locked ? '🔓' : '🔒'}</button>
       <button class="btn-remove" title="Hapus">×</button>
     `;
     el.querySelector('.btn-remove').addEventListener('click', () => removeTimeSlot(index));
@@ -322,22 +509,24 @@ function renderCalendar(schedule) {
   state.timeSlots.forEach((slot, timeIndex) => {
     // Time label
     const timeLabel = document.createElement('div');
-    timeLabel.className = 'calendar-time-label';
-    timeLabel.textContent = slot.label;
+    timeLabel.className = 'calendar-time-label' + (slot.locked ? ' calendar-time-locked' : '');
+    timeLabel.textContent = slot.locked ? `🔒 ${slot.label}` : slot.label;
     grid.appendChild(timeLabel);
 
     // Day cells
     DAYS.forEach((day, dayIndex) => {
       const cell = document.createElement('div');
-      cell.className = 'calendar-cell';
+      cell.className = 'calendar-cell' + (slot.locked ? ' calendar-cell-locked' : '');
       cell.dataset.day = dayIndex;
       cell.dataset.time = timeIndex;
       
-      // Drag & Drop Event Listeners
-      cell.addEventListener('dragenter', handleDragEnter);
-      cell.addEventListener('dragover', handleDragOver);
-      cell.addEventListener('dragleave', handleDragLeave);
-      cell.addEventListener('drop', handleDrop);
+      if (!slot.locked) {
+        // Drag & Drop Event Listeners
+        cell.addEventListener('dragenter', handleDragEnter);
+        cell.addEventListener('dragover', handleDragOver);
+        cell.addEventListener('dragleave', handleDragLeave);
+        cell.addEventListener('drop', handleDrop);
+      }
 
       // Find all courses assigned to this (day, time)
       for (const [courseId, assignment] of Object.entries(schedule)) {
@@ -351,13 +540,27 @@ function renderCalendar(schedule) {
             card.dataset.courseId = courseId;
             card.addEventListener('dragstart', handleDragStart);
             
+            // Touch events for mobile
+            card.addEventListener('touchstart', handleTouchStart, { passive: false });
+            card.addEventListener('touchmove', handleTouchMove, { passive: false });
+            card.addEventListener('touchend', handleTouchEnd);
+            
             card.style.borderLeftColor = course.color;
             card.style.background = hexToRgba(course.color, 0.12);
+
+            // Check capacity warning
+            const room = state.rooms.find(r => r.name === assignment.room);
+            const capacityWarning = room && course.students > room.capacity;
+
             card.innerHTML = `
               <span class="card-name" style="color: ${course.color}">${course.name}</span>
-              <span class="card-detail">${course.lecturer}</span>
-              <span class="card-room">📍 ${assignment.room}</span>
+              <span class="card-detail">${course.lecturer} · ${course.students || '?'} mhs</span>
+              <span class="card-room">${capacityWarning ? '⚠️' : '📍'} ${assignment.room}${room ? ` (${room.capacity})` : ''}</span>
             `;
+            if (capacityWarning) {
+              card.classList.add('capacity-warning');
+              card.title = `Peringatan: ${course.students} mahasiswa > ${room.capacity} kapasitas ruangan`;
+            }
             cell.appendChild(card);
           }
         }
@@ -406,12 +609,12 @@ function renderStats(data) {
   }
 
   elConflicts.textContent = data.conflicts;
-  elTemp.textContent = data.temperature.toFixed(2);
-  elIter.textContent = data.iteration.toLocaleString();
+  elTemp.textContent = typeof data.temperature === 'number' ? data.temperature.toFixed(2) : '—';
+  elIter.textContent = data.iteration !== undefined ? data.iteration.toLocaleString() : '—';
   elFitness.textContent = data.bestPenalty;
 
   // Temperature bar: percentage of initial temp
-  const tempPercent = Math.max(0, (data.temperature / 100) * 100);
+  const tempPercent = Math.max(0, ((data.temperature || 0) / 100) * 100);
   elTempBar.style.width = Math.min(100, tempPercent) + '%';
 
   // Color the conflicts value
@@ -426,6 +629,14 @@ function renderStats(data) {
 // 9. GENERATE SCHEDULE (SA + Animation)
 // ============================================================
 
+function buildRoomCapacities() {
+  const caps = {};
+  for (const room of state.rooms) {
+    caps[room.name] = room.capacity;
+  }
+  return caps;
+}
+
 async function generateSchedule() {
   if (state.isRunning) return;
 
@@ -439,6 +650,13 @@ async function generateSchedule() {
   }
   if (state.timeSlots.length === 0) {
     showNotification('Tambahkan jam kuliah terlebih dahulu!', 'error');
+    return;
+  }
+
+  // Filter out locked timeslots
+  const activeTimeSlots = state.timeSlots.filter(ts => !ts.locked);
+  if (activeTimeSlots.length === 0) {
+    showNotification('Semua jam kuliah dikunci! Buka setidaknya satu.', 'error');
     return;
   }
 
@@ -471,9 +689,19 @@ async function generateSchedule() {
     addLog(`   ↳ ... dan ${edges.length - 5} edge lainnya`, 'info');
   }
 
-  // ── Step 2: Generate all available slots ──
-  const allSlots = generateAllSlots(state.rooms, state.timeSlots);
-  addLog(`📦 Total slot tersedia: ${allSlots.length} (${DAYS.length} hari × ${state.timeSlots.length} waktu × ${state.rooms.length} ruangan)`, 'info');
+  // Log locked timeslots
+  const lockedCount = state.timeSlots.filter(ts => ts.locked).length;
+  if (lockedCount > 0) {
+    addLog(`🔒 ${lockedCount} jam kuliah dikunci (istirahat) — dilewati`, 'info');
+  }
+
+  // ── Step 2: Generate all available slots (only unlocked) ──
+  const roomNames = state.rooms.map(r => r.name);
+  const allSlots = generateAllSlots(roomNames, activeTimeSlots);
+  addLog(`📦 Total slot tersedia: ${allSlots.length} (${DAYS.length} hari × ${activeTimeSlots.length} waktu × ${state.rooms.length} ruangan)`, 'info');
+
+  // Build room capacities lookup
+  const roomCapacities = buildRoomCapacities();
 
   // ── Step 3: Run Greedy Graph Coloring + SA ──
   addLog('🎨 Menjalankan Greedy Graph Coloring untuk solusi awal...', 'info');
@@ -510,7 +738,8 @@ async function generateSchedule() {
       } else if (stepData.phase === 'finished') {
         addLog(`⚠️ SA selesai. Sisa konflik: ${stepData.bestConflicts}`, 'warning');
       }
-    }
+    },
+    roomCapacities
   );
 
   // ── Step 4: Finalize ──
@@ -535,6 +764,8 @@ async function generateSchedule() {
       'warning'
     );
   }
+
+  saveState();
 }
 
 // ============================================================
@@ -559,6 +790,10 @@ function resetAll() {
   renderTimeSlotList();
   renderCalendarEmpty();
   renderStats(null);
+  
+  // Clear localStorage
+  localStorage.removeItem('scheduler-state');
+  
   showNotification('Semua data direset', 'info');
   addLog('🗑️ Data direset. Mulai dari awal.', 'info');
 }
@@ -573,7 +808,7 @@ function exportCSV() {
     return;
   }
 
-  let csv = 'Hari,Waktu,Mata Kuliah,Dosen,SKS,Ruangan\n';
+  let csv = 'Hari,Waktu,Mata Kuliah,Dosen,SKS,Jumlah Mahasiswa,Ruangan,Kapasitas\n';
 
   if (state.schedule) {
     // Sort by day → time
@@ -586,13 +821,15 @@ function exportCSV() {
       const course = state.courses.find((c) => c.id === courseId);
       if (course) {
         const timeLabel = state.timeSlots[slot.timeIndex] ? state.timeSlots[slot.timeIndex].label : '';
-        csv += `${DAYS[slot.dayIndex]},${timeLabel},${course.name},${course.lecturer},${course.sks},${slot.room}\n`;
+        const room = state.rooms.find(r => r.name === slot.room);
+        const cap = room ? room.capacity : '';
+        csv += `${DAYS[slot.dayIndex]},${timeLabel},${course.name},${course.lecturer},${course.sks},${course.students || ''},${slot.room},${cap}\n`;
       }
     }
   } else {
     // Export just the course list
     for (const course of state.courses) {
-      csv += `,,${course.name},${course.lecturer},${course.sks},\n`;
+      csv += `,,${course.name},${course.lecturer},${course.sks},${course.students || ''},,\n`;
     }
   }
 
@@ -609,6 +846,40 @@ function exportCSV() {
   } else {
     showNotification('📥 Daftar mata kuliah berhasil diekspor ke CSV!', 'success');
     addLog('💾 Daftar mata kuliah diekspor ke file daftar_mata_kuliah.csv', 'success');
+  }
+}
+
+// ============================================================
+// 11B. EXPORT PNG
+// ============================================================
+
+async function exportPNG() {
+  const calendarWrapper = document.getElementById('calendar-wrapper');
+  
+  if (!calendarWrapper || !state.schedule) {
+    showNotification('Generate jadwal terlebih dahulu!', 'warning');
+    return;
+  }
+
+  showNotification('📸 Memproses screenshot...', 'info');
+
+  try {
+    const canvas = await html2canvas(calendarWrapper, {
+      backgroundColor: getComputedStyle(document.documentElement).getPropertyValue('--bg-primary').trim() || '#000',
+      scale: 2, // High resolution
+      useCORS: true,
+      logging: false,
+    });
+
+    const link = document.createElement('a');
+    link.download = 'jadwal_kuliah.png';
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+
+    showNotification('📸 Jadwal berhasil diekspor ke PNG!', 'success');
+    addLog('📸 Jadwal diekspor ke file jadwal_kuliah.png', 'success');
+  } catch (err) {
+    showNotification('Gagal export PNG: ' + err.message, 'error');
   }
 }
 
@@ -658,7 +929,7 @@ function hexToRgba(hex, alpha = 1) {
 }
 
 // ============================================================
-// 13. DRAG & DROP LOGIC
+// 13. DRAG & DROP LOGIC (Mouse)
 // ============================================================
 
 function handleDragStart(e) {
@@ -692,6 +963,16 @@ function handleDrop(e) {
   
   if (isNaN(dayIndex) || isNaN(timeIndex)) return;
 
+  performDrop(courseId, dayIndex, timeIndex);
+}
+
+function performDrop(courseId, dayIndex, timeIndex) {
+  // Check if timeslot is locked
+  if (state.timeSlots[timeIndex] && state.timeSlots[timeIndex].locked) {
+    showNotification('Gagal: Jam ini dikunci sebagai waktu istirahat!', 'warning');
+    return;
+  }
+
   // Cek apakah sel tujuan sudah terisi matkul lain (tidak boleh numpuk)
   let isOccupied = false;
   for (const [id, assignment] of Object.entries(state.schedule)) {
@@ -707,7 +988,7 @@ function handleDrop(e) {
     return;
   }
 
-  // Preserve the room if moving, or just assign first available room if simple move
+  // Preserve the room if moving
   const oldAssignment = state.schedule[courseId];
   if (oldAssignment) {
     oldAssignment.dayIndex = dayIndex;
@@ -715,11 +996,12 @@ function handleDrop(e) {
     
     // Recalculate fitness
     const maxTimeIndex = state.timeSlots.length;
-    const result = calculateFitness(state.schedule, state.conflictGraph, state.courses, maxTimeIndex);
+    const roomCapacities = buildRoomCapacities();
+    const result = calculateFitness(state.schedule, state.conflictGraph, state.courses, maxTimeIndex, roomCapacities);
     
     if (result.conflicts > 0) {
       showNotification('Modifikasi menghasilkan jadwal bentrok!', 'warning');
-      addLog(`⚠️ Swap manual: Terdapat ${result.conflicts} konflik ruangan/dosen.`, 'warning');
+      addLog(`⚠️ Swap manual: Terdapat ${result.conflicts} konflik.`, 'warning');
     } else {
       showNotification('Jadwal berhasil digeser.', 'success');
       addLog(`✨ Swap manual sukses tanpa konflik.`, 'success');
@@ -733,7 +1015,106 @@ function handleDrop(e) {
       bestPenalty: result.penalty
     });
     renderCalendar(state.schedule);
+    saveState();
   }
+}
+
+// ============================================================
+// 13B. TOUCH DRAG & DROP (Mobile)
+// ============================================================
+
+let touchDragState = null;
+
+function handleTouchStart(e) {
+  const card = e.currentTarget;
+  const courseId = card.dataset.courseId;
+  if (!courseId || !state.schedule) return;
+
+  const touch = e.touches[0];
+  
+  touchDragState = {
+    courseId,
+    startX: touch.clientX,
+    startY: touch.clientY,
+    ghost: null,
+    isDragging: false,
+  };
+}
+
+function handleTouchMove(e) {
+  if (!touchDragState) return;
+  e.preventDefault();
+  
+  const touch = e.touches[0];
+  const dx = touch.clientX - touchDragState.startX;
+  const dy = touch.clientY - touchDragState.startY;
+  
+  // Start dragging after a threshold
+  if (!touchDragState.isDragging && (Math.abs(dx) > 10 || Math.abs(dy) > 10)) {
+    touchDragState.isDragging = true;
+    
+    // Create ghost card
+    const originalCard = e.currentTarget;
+    const ghost = originalCard.cloneNode(true);
+    ghost.className = 'course-card touch-ghost';
+    ghost.style.position = 'fixed';
+    ghost.style.width = originalCard.offsetWidth + 'px';
+    ghost.style.zIndex = '9999';
+    ghost.style.pointerEvents = 'none';
+    ghost.style.opacity = '0.85';
+    ghost.style.transform = 'scale(1.05) rotate(2deg)';
+    ghost.style.boxShadow = '0 12px 32px rgba(0,0,0,0.5)';
+    document.body.appendChild(ghost);
+    touchDragState.ghost = ghost;
+    
+    originalCard.style.opacity = '0.3';
+  }
+  
+  if (touchDragState.isDragging && touchDragState.ghost) {
+    touchDragState.ghost.style.left = (touch.clientX - 50) + 'px';
+    touchDragState.ghost.style.top = (touch.clientY - 20) + 'px';
+    
+    // Highlight cell under finger
+    document.querySelectorAll('.calendar-cell.drag-over').forEach(c => c.classList.remove('drag-over'));
+    const elementBelow = document.elementFromPoint(touch.clientX, touch.clientY);
+    const cell = elementBelow?.closest('.calendar-cell');
+    if (cell && !cell.classList.contains('calendar-cell-locked')) {
+      cell.classList.add('drag-over');
+    }
+  }
+}
+
+function handleTouchEnd(e) {
+  if (!touchDragState) return;
+  
+  // Restore original card opacity
+  const originalCard = e.currentTarget;
+  originalCard.style.opacity = '1';
+  
+  // Remove ghost
+  if (touchDragState.ghost) {
+    touchDragState.ghost.remove();
+  }
+  
+  // Remove drag-over highlights
+  document.querySelectorAll('.calendar-cell.drag-over').forEach(c => c.classList.remove('drag-over'));
+  
+  if (touchDragState.isDragging) {
+    // Find the cell under the last touch point
+    const touch = e.changedTouches[0];
+    const elementBelow = document.elementFromPoint(touch.clientX, touch.clientY);
+    const cell = elementBelow?.closest('.calendar-cell');
+    
+    if (cell && !cell.classList.contains('calendar-cell-locked')) {
+      const dayIndex = parseInt(cell.dataset.day);
+      const timeIndex = parseInt(cell.dataset.time);
+      if (!isNaN(dayIndex) && !isNaN(timeIndex)) {
+        performDrop(touchDragState.courseId, dayIndex, timeIndex);
+      }
+    }
+  }
+  
+  touchDragState = null;
 }
 
 // ============================================================
@@ -745,7 +1126,7 @@ function drawGraph(activeSchedule = state.schedule) {
   if (!canvas) return;
   const ctx = canvas.getContext('2d');
   
-  // Resize to match display size (handle high DPI if needed, keeping simple for now)
+  // Resize to match display size
   const rect = canvas.parentElement.getBoundingClientRect();
   canvas.width = rect.width;
   canvas.height = rect.height;
@@ -770,43 +1151,40 @@ function drawGraph(activeSchedule = state.schedule) {
     };
   });
   
-    const isLight = document.documentElement.getAttribute('data-theme') === 'light';
-    const edgeColor = isLight ? 'rgba(0, 0, 0, 0.15)' : 'rgba(255, 255, 255, 0.15)';
-    
-    // Draw edges
-    ctx.lineWidth = 1.5;
-    courses.forEach(course => {
-      const p1 = positions[course.id];
-      const neighbors = graph.get(course.id) || new Set();
-      neighbors.forEach(neighborId => {
-        // Draw edge only in one direction to avoid double drawing
-        if (course.id < neighborId) {
-          const p2 = positions[neighborId];
-          if (p1 && p2) {
-            ctx.beginPath();
-            ctx.moveTo(p1.x, p1.y);
-            ctx.lineTo(p2.x, p2.y);
-            ctx.strokeStyle = edgeColor;
-            ctx.stroke();
-          }
+  const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+  const edgeColor = isLight ? 'rgba(0, 0, 0, 0.15)' : 'rgba(255, 255, 255, 0.15)';
+  
+  // Draw edges
+  ctx.lineWidth = 1.5;
+  courses.forEach(course => {
+    const p1 = positions[course.id];
+    const neighbors = graph.get(course.id) || new Set();
+    neighbors.forEach(neighborId => {
+      if (course.id < neighborId) {
+        const p2 = positions[neighborId];
+        if (p1 && p2) {
+          ctx.beginPath();
+          ctx.moveTo(p1.x, p1.y);
+          ctx.lineTo(p2.x, p2.y);
+          ctx.strokeStyle = edgeColor;
+          ctx.stroke();
         }
-      });
+      }
     });
+  });
   
   // Draw nodes
-  const isLightMode = document.documentElement.getAttribute('data-theme') === 'light';
-  const emptyNodeFill = isLightMode ? '#e2e8f0' : '#333';
-  const emptyNodeStroke = isLightMode ? '#94a3b8' : '#666';
+  const emptyNodeFill = isLight ? '#e2e8f0' : '#333';
+  const emptyNodeStroke = isLight ? '#94a3b8' : '#666';
 
   courses.forEach(course => {
     const p = positions[course.id];
     let fillStyle = emptyNodeFill;
     let strokeStyle = emptyNodeStroke;
     
-    // Highlight if scheduled
     if (activeSchedule && activeSchedule[course.id]) {
       fillStyle = course.color;
-      strokeStyle = isLightMode ? '#fff' : '#fff';
+      strokeStyle = '#fff';
     }
     
     ctx.beginPath();
@@ -818,12 +1196,11 @@ function drawGraph(activeSchedule = state.schedule) {
     ctx.stroke();
     
     // Node Label
-    ctx.fillStyle = (activeSchedule && activeSchedule[course.id]) ? '#fff' : (isLightMode ? '#334155' : '#fff');
+    ctx.fillStyle = (activeSchedule && activeSchedule[course.id]) ? '#fff' : (isLight ? '#334155' : '#fff');
     ctx.font = 'bold 10px Arial';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     
-    // Shorten ID to MK1 instead of MK01 for better fit, or just use digits
     const shortId = course.id.replace('MK0', '').replace('MK', '');
     ctx.fillText(shortId, p.x, p.y);
   });
