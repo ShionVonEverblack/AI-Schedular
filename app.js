@@ -1241,10 +1241,11 @@ function drawGraph(activeSchedule = state.schedule) {
   if (!canvas) return;
   const ctx = canvas.getContext('2d');
   
-  // Resize to match display size
+  // Ensure minimum size so it can be scrolled if needed, preventing cutoff
   const rect = canvas.parentElement.getBoundingClientRect();
-  canvas.width = rect.width;
-  canvas.height = rect.height;
+  const minSize = Math.max(rect.width, rect.height, 400);
+  canvas.width = Math.max(rect.width, minSize);
+  canvas.height = Math.max(rect.height, minSize);
   
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   
@@ -1252,7 +1253,8 @@ function drawGraph(activeSchedule = state.schedule) {
 
   const courses = state.courses;
   const graph = state.conflictGraph.adjacencyList;
-  const radius = Math.min(canvas.width, canvas.height) / 2 - 30;
+  // Increase padding to prevent edges/nodes from being cut off
+  const radius = Math.min(canvas.width, canvas.height) / 2 - 40;
   const centerX = canvas.width / 2;
   const centerY = canvas.height / 2;
   
