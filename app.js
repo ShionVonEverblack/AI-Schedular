@@ -71,6 +71,8 @@ function setupEventListeners() {
   document.getElementById('btn-reset').addEventListener('click', resetAll);
   document.getElementById('btn-print').addEventListener('click', () => window.print());
   document.getElementById('btn-theme-toggle').addEventListener('click', toggleTheme);
+  document.getElementById('btn-import-csv').addEventListener('click', () => document.getElementById('csv-file-input').click());
+  document.getElementById('csv-file-input').addEventListener('change', handleCSVImport);
   document.getElementById('form-add-course').addEventListener('submit', handleAddCourse);
   document.getElementById('form-add-room').addEventListener('submit', handleAddRoom);
   document.getElementById('form-add-timeslot').addEventListener('submit', handleAddTimeSlot);
@@ -881,6 +883,119 @@ async function exportPNG() {
   } catch (err) {
     showNotification('Gagal export PNG: ' + err.message, 'error');
   }
+}
+
+// ============================================================
+// 11C. IMPORT CSV
+// ============================================================
+
+function handleCSVImport(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = function(event) {
+    try {
+      const text = event.target.result;
+      parseAndImportCSV(text);
+    } catch (err) {
+      showNotification('Gagal membaca file CSV: ' + err.message, 'error');
+    }
+  };
+  reader.readAsText(file);
+  // Reset file input so the same file can be imported again
+  e.target.value = '';
+}
+
+function parseAndImportCSV(text) {
+  const lines = text.split('\n').filter(line => line.trim() !== '');
+  if (lines.length < 2) {
+    showNotification('File CSV kosong atau tidak valid!', 'error');
+    return;
+  }
+
+  // Parse header to detect format
+  const header = lines[0].toLowerCase();
+  const isScheduleCSV = header.includes('hari') && header.includes('waktu');
+
+  let importedCourses = 0;
+  let importedRooms = new Set();
+
+  for (let i = 1; i < lines.length; i++) {
+    const cols = parseCSVLine(lines[i]);
+    if (cols.length < 4) continue;
+
+    if (isScheduleCSV) {
+      // Format: Hari, Waktu, Mata Kuliah, Dosen, SKS, Jumlah Mahasiswa, Ruangan, Kapasitas
+      const [, , name, lecturer, sksStr, studentsStr, roomName, capacityStr] = cols;
+      if (!name || !name.trim()) continue;
+
+      const sks = parseInt(sksStr) || 3;
+      const students = parseInt(studentsStr) || 30;
+      const id = 'MK' + String(state.nextCourseId++).padStart(2, '0');
+      const color = COURSE_COLORS[state.courses.length % COURSE_COLORS.length];
+
+      // Avoid duplicate course names
+      if (!state.courses.some(c => c.name.toLowerCase() === name.trim().toLowerCase())) {
+        state.courses.push({ id, name: name.trim(), lecturer: lecturer.trim(), sks, semester: 2, color, preference: 'none', students });
+        importedCourses++;
+      }
+
+      // Import room if present and not duplicate
+      if (roomName && roomName.trim()) {
+        const rName = roomName.trim().toUpperCase();
+        if (!state.rooms.some(r => r.name === rName)) {
+          const capacity = parseInt(capacityStr) || 40;
+          state.rooms.push({ name: rName, capacity });
+          importedRooms.add(rName);
+        }
+      }
+    } else {
+      // Generic format: assume cols are Name, Lecturer, SKS, Students
+      const [name, lecturer, sksStr, studentsStr] = cols;
+      if (!name || !name.trim()) continue;
+
+      const sks = parseInt(sksStr) || 3;
+      const students = parseInt(studentsStr) || 30;
+      const id = 'MK' + String(state.nextCourseId++).padStart(2, '0');
+      const color = COURSE_COLORS[state.courses.length % COURSE_COLORS.length];
+
+      if (!state.courses.some(c => c.name.toLowerCase() === name.trim().toLowerCase())) {
+        state.courses.push({ id, name: name.trim(), lecturer: lecturer.trim(), sks, semester: 2, color, preference: 'none', students });
+        importedCourses++;
+      }
+    }
+  }
+
+  // Render all
+  renderCourseList();
+  renderRoomList();
+  renderLegend();
+  saveState();
+
+  const msg = `📂 Import berhasil: ${importedCourses} mata kuliah` + (importedRooms.size > 0 ? `, ${importedRooms.size} ruangan` : '');
+  showNotification(msg, 'success');
+  addLog(msg, 'success');
+}
+
+/** Parse a single CSV line, handling quoted fields */
+function parseCSVLine(line) {
+  const result = [];
+  let current = '';
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch === '"') {
+      inQuotes = !inQuotes;
+    } else if (ch === ',' && !inQuotes) {
+      result.push(current.trim());
+      current = '';
+    } else {
+      current += ch;
+    }
+  }
+  result.push(current.trim());
+  return result;
 }
 
 // ============================================================

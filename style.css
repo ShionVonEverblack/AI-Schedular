@@ -195,7 +195,7 @@ body {
   display: grid;
   grid-template-columns: 280px 1fr;
   flex: 1;
-  min-height: 0; /* Ensures scrollable flex children */
+  min-height: 0;
 }
 
 /* ============================================================
@@ -205,64 +205,71 @@ body {
   background: var(--bg-secondary);
   border-right: 1px solid var(--border);
   overflow-y: auto;
-  padding: 20px;
+  padding: 12px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 6px;
 }
 
 .panel {
   display: flex;
   flex-direction: column;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 10px;
 }
 
 .panel-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 12px;
+  margin-bottom: 8px;
+  cursor: pointer;
+  user-select: none;
 }
 
 .panel-header h3 {
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
   color: var(--text-secondary);
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
 }
 
 .count-badge {
   background: var(--bg-surface);
   border: 1px solid var(--border);
   color: var(--text-secondary);
-  font-size: 0.6rem;
-  padding: 2px 6px;
-  border-radius: 12px;
+  font-size: 0.55rem;
+  padding: 1px 5px;
+  border-radius: 10px;
   font-weight: 600;
 }
 
 .item-list {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  margin-bottom: 12px;
-  max-height: 200px;
+  gap: 3px;
+  margin-bottom: 8px;
+  max-height: 140px;
   overflow-y: auto;
 }
 
 .course-item, .room-item, .timeslot-item {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 8px 10px;
+  gap: 6px;
+  padding: 5px 8px;
   border-radius: var(--radius-sm);
-  background: var(--bg-card);
+  background: var(--bg-surface);
   border: 1px solid rgba(255,255,255,0.02);
   transition: all 0.15s ease;
   animation: fadeSlideIn 0.2s ease;
+  font-size: 0.7rem;
 }
 
 .course-item:hover, .room-item:hover, .timeslot-item:hover {
@@ -439,10 +446,12 @@ body {
 .actions-panel {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  margin-top: 10px;
-  padding-top: 16px;
-  border-top: 1px solid var(--border);
+  gap: 6px;
+}
+
+/* Hidden file input for CSV import */
+.file-input-hidden {
+  display: none;
 }
 
 /* ============================================================
@@ -701,8 +710,8 @@ body {
 .bottom-panels {
   display: flex;
   gap: 16px;
-  height: 240px;
-  min-height: 240px;
+  height: 340px;
+  min-height: 340px;
   flex-shrink: 0;
 }
 
@@ -790,10 +799,11 @@ body {
   border-radius: var(--radius-sm);
   font-size: 0.75rem;
   font-weight: 500;
-  background: rgba(10, 10, 10, 0.85);
-  backdrop-filter: blur(12px);
+  background: var(--bg-card);
+  color: var(--text-primary);
+  backdrop-filter: blur(16px);
   border: 1px solid var(--border);
-  box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+  box-shadow: var(--shadow-md);
   opacity: 0;
   transform: translateY(20px);
   transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
@@ -806,10 +816,10 @@ body {
   transform: translateY(0);
 }
 
-.notification-success { border-left: 3px solid var(--success); }
-.notification-error { border-left: 3px solid var(--danger); }
-.notification-warning { border-left: 3px solid var(--warning); }
-.notification-info { border-left: 3px solid var(--info); }
+.notification-success { border-left: 3px solid var(--success); color: var(--success); }
+.notification-error { border-left: 3px solid var(--danger); color: var(--danger); }
+.notification-warning { border-left: 3px solid var(--warning); color: var(--warning); }
+.notification-info { border-left: 3px solid var(--info); color: var(--text-primary); }
 
 .spinner {
   display: inline-block;
