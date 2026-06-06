@@ -19,6 +19,9 @@ const state = {
   isRunning: false,
   nextCourseId: 8, // Preset MK01-MK07, next = 8
   nextTimeSlotId: 1,
+  versions: [],     // Array of { name, date, schedule, courses, rooms, timeSlots }
+  activeFilter: { type: 'none', value: '' },
+  dragCourseId: null, // Currently dragged course for validation
 };
 
 // ============================================================
@@ -43,6 +46,7 @@ function init() {
     renderRoomList();
     renderTimeSlotList();
     renderLegend();
+    renderVersionList();
     if (state.schedule) {
       renderCalendar(state.schedule);
       renderStats({ conflicts: 0, temperature: 0, iteration: 'Saved', bestPenalty: 0 });
@@ -55,6 +59,7 @@ function init() {
     renderCalendarEmpty();
     renderStats(null);
     renderTimeSlotList();
+    renderVersionList();
     addLog('Aplikasi siap. Klik "Load Preset" atau tambahkan data manual.', 'info');
   }
 
@@ -68,6 +73,8 @@ function setupEventListeners() {
   document.getElementById('btn-generate').addEventListener('click', generateSchedule);
   document.getElementById('btn-export').addEventListener('click', exportCSV);
   document.getElementById('btn-export-png').addEventListener('click', exportPNG);
+  document.getElementById('btn-export-excel').addEventListener('click', exportExcel);
+  document.getElementById('btn-export-pdf').addEventListener('click', exportPDF);
   document.getElementById('btn-reset').addEventListener('click', resetAll);
   document.getElementById('btn-print').addEventListener('click', () => window.print());
   document.getElementById('btn-theme-toggle').addEventListener('click', toggleTheme);
@@ -76,6 +83,9 @@ function setupEventListeners() {
   document.getElementById('form-add-course').addEventListener('submit', handleAddCourse);
   document.getElementById('form-add-room').addEventListener('submit', handleAddRoom);
   document.getElementById('form-add-timeslot').addEventListener('submit', handleAddTimeSlot);
+  document.getElementById('btn-save-version').addEventListener('click', saveVersion);
+  document.getElementById('filter-type').addEventListener('change', handleFilterTypeChange);
+  document.getElementById('filter-value').addEventListener('change', handleFilterValueChange);
   
   window.addEventListener('resize', () => {
     if (state.conflictGraph) drawGraph();
@@ -106,6 +116,7 @@ function saveState() {
       schedule: state.schedule,
       nextCourseId: state.nextCourseId,
       nextTimeSlotId: state.nextTimeSlotId,
+      versions: state.versions,
     };
     localStorage.setItem('scheduler-state', JSON.stringify(data));
   } catch (e) {
@@ -124,6 +135,7 @@ function loadState() {
     if (data.schedule) state.schedule = data.schedule;
     if (data.nextCourseId) state.nextCourseId = data.nextCourseId;
     if (data.nextTimeSlotId) state.nextTimeSlotId = data.nextTimeSlotId;
+    if (data.versions) state.versions = data.versions;
     return true;
   } catch (e) {
     return false;
@@ -175,17 +187,22 @@ function handleAddCourse(e) {
   const preference = prefSelect ? prefSelect.value : 'none';
   const students = parseInt(studentsInput.value) || 30;
 
+  // Get lecturer availability from checkboxes
+  const availCheckboxes = document.querySelectorAll('input[name="avail-day"]:checked');
+  const lecturerAvailability = Array.from(availCheckboxes).map(cb => parseInt(cb.value));
+
   if (!name || !lecturer) return;
 
   const id = 'MK' + String(state.nextCourseId++).padStart(2, '0');
   const color = COURSE_COLORS[state.courses.length % COURSE_COLORS.length];
 
-  state.courses.push({ id, name, lecturer, sks, semester: 2, color, preference, students });
+  state.courses.push({ id, name, lecturer, sks, semester: 2, color, preference, students, lecturerAvailability });
   renderCourseList();
   renderLegend();
   e.target.reset();
-  // Reset default value for students
+  // Reset default values
   document.getElementById('input-students').value = '30';
+  document.querySelectorAll('input[name="avail-day"]').forEach(cb => cb.checked = true);
   saveState();
   showNotification(`"${name}" ditambahkan!`, 'success');
 }
@@ -546,6 +563,11 @@ function renderCalendar(schedule) {
             card.addEventListener('touchstart', handleTouchStart, { passive: false });
             card.addEventListener('touchmove', handleTouchMove, { passive: false });
             card.addEventListener('touchend', handleTouchEnd);
+
+            // Tooltip events
+            card.addEventListener('mouseenter', showTooltip);
+            card.addEventListener('mousemove', moveTooltip);
+            card.addEventListener('mouseleave', hideTooltip);
             
             card.style.borderLeftColor = course.color;
             card.style.background = hexToRgba(course.color, 0.12);
@@ -554,15 +576,29 @@ function renderCalendar(schedule) {
             const room = state.rooms.find(r => r.name === assignment.room);
             const capacityWarning = room && course.students > room.capacity;
 
+            // Check lecturer availability warning
+            const availWarning = course.lecturerAvailability && 
+              course.lecturerAvailability.length > 0 && 
+              !course.lecturerAvailability.includes(dayIndex);
+
             card.innerHTML = `
               <span class="card-name" style="color: ${course.color}">${course.name}</span>
-              <span class="card-detail">${course.lecturer} · ${course.students || '?'} mhs</span>
-              <span class="card-room">${capacityWarning ? '⚠️' : '📍'} ${assignment.room}${room ? ` (${room.capacity})` : ''}</span>
+              <span class="card-detail">${course.lecturer} · ${course.students || '?'} mhs · Sem ${course.semester || '?'}</span>
+              <span class="card-room">${capacityWarning || availWarning ? '⚠️' : '📍'} ${assignment.room}${room ? ` (${room.capacity})` : ''}</span>
             `;
             if (capacityWarning) {
               card.classList.add('capacity-warning');
-              card.title = `Peringatan: ${course.students} mahasiswa > ${room.capacity} kapasitas ruangan`;
             }
+            if (availWarning) {
+              card.classList.add('capacity-warning');
+            }
+
+            // Apply filter
+            if (state.activeFilter.type !== 'none' && state.activeFilter.value) {
+              const match = checkFilterMatch(course, assignment);
+              if (!match) card.classList.add('filtered-out');
+            }
+
             cell.appendChild(card);
           }
         }
@@ -667,6 +703,14 @@ async function generateSchedule() {
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner"></span> Generating...';
 
+  // Show progress bar
+  const progressContainer = document.getElementById('progress-container');
+  const progressBar = document.getElementById('progress-bar');
+  const progressText = document.getElementById('progress-text');
+  progressContainer.style.display = 'block';
+  progressBar.style.width = '0%';
+  progressText.textContent = '0%';
+
   // Reset UI
   document.getElementById('log-content').innerHTML = '';
   document.getElementById('calendar-wrapper').classList.remove('solved');
@@ -721,6 +765,12 @@ async function generateSchedule() {
       animSpeed: 8,
     },
     (stepData) => {
+      // Update progress bar
+      const maxIter = 5000;
+      const pct = Math.min(100, Math.round((stepData.iteration / maxIter) * 100));
+      progressBar.style.width = pct + '%';
+      progressText.textContent = pct + '%';
+
       // Update UI setiap step
       renderCalendar(stepData.schedule);
       renderStats(stepData);
@@ -749,6 +799,11 @@ async function generateSchedule() {
   state.isRunning = false;
   btn.disabled = false;
   btn.innerHTML = '⚡ Generate Jadwal';
+
+  // Hide progress bar
+  progressBar.style.width = '100%';
+  progressText.textContent = '100%';
+  setTimeout(() => { progressContainer.style.display = 'none'; }, 1000);
 
   addLog(`───────────────────────────────`, 'info');
   addLog(`📈 Hasil akhir:`, 'info');
@@ -1048,8 +1103,15 @@ function hexToRgba(hex, alpha = 1) {
 // ============================================================
 
 function handleDragStart(e) {
-  e.dataTransfer.setData('text/plain', e.currentTarget.dataset.courseId);
+  const courseId = e.currentTarget.dataset.courseId;
+  e.dataTransfer.setData('text/plain', courseId);
   e.dataTransfer.effectAllowed = 'move';
+  state.dragCourseId = courseId;
+
+  // Highlight valid/invalid drop targets
+  if (state.schedule) {
+    requestAnimationFrame(() => highlightDropTargets(courseId));
+  }
 }
 
 function handleDragEnter(e) {
@@ -1059,7 +1121,10 @@ function handleDragEnter(e) {
 function handleDragOver(e) {
   e.preventDefault();
   e.dataTransfer.dropEffect = 'move';
-  e.currentTarget.classList.add('drag-over');
+  // Don't add generic drag-over if we have validation classes
+  if (!e.currentTarget.classList.contains('drop-valid') && !e.currentTarget.classList.contains('drop-invalid')) {
+    e.currentTarget.classList.add('drag-over');
+  }
 }
 
 function handleDragLeave(e) {
@@ -1069,6 +1134,8 @@ function handleDragLeave(e) {
 function handleDrop(e) {
   e.preventDefault();
   e.currentTarget.classList.remove('drag-over');
+  clearDropHighlights();
+  state.dragCourseId = null;
   
   if (!state.schedule) return;
 
@@ -1079,6 +1146,34 @@ function handleDrop(e) {
   if (isNaN(dayIndex) || isNaN(timeIndex)) return;
 
   performDrop(courseId, dayIndex, timeIndex);
+}
+
+function highlightDropTargets(courseId) {
+  const cells = document.querySelectorAll('.calendar-cell');
+  cells.forEach(cell => {
+    const dayIndex = parseInt(cell.dataset.day);
+    const timeIndex = parseInt(cell.dataset.time);
+    if (isNaN(dayIndex) || isNaN(timeIndex)) return;
+
+    const validation = validateDrop(courseId, dayIndex, timeIndex, state.schedule, state.courses, state.rooms);
+    if (validation.valid) {
+      cell.classList.add('drop-valid');
+    } else {
+      cell.classList.add('drop-invalid');
+    }
+  });
+
+  // Listen for dragend to clear highlights
+  document.addEventListener('dragend', () => {
+    clearDropHighlights();
+    state.dragCourseId = null;
+  }, { once: true });
+}
+
+function clearDropHighlights() {
+  document.querySelectorAll('.calendar-cell').forEach(cell => {
+    cell.classList.remove('drop-valid', 'drop-invalid', 'drop-warning', 'drag-over');
+  });
 }
 
 function performDrop(courseId, dayIndex, timeIndex) {
@@ -1321,4 +1416,341 @@ function drawGraph(activeSchedule = state.schedule) {
     const shortId = course.id.replace('MK0', '').replace('MK', '');
     ctx.fillText(shortId, p.x, p.y);
   });
+}
+
+// ============================================================
+// 15. TOOLTIP (Hover Detail)
+// ============================================================
+
+function showTooltip(e) {
+  const card = e.currentTarget;
+  const courseId = card.dataset.courseId;
+  if (!courseId || !state.schedule) return;
+
+  const course = state.courses.find(c => c.id === courseId);
+  const assignment = state.schedule[courseId];
+  if (!course || !assignment) return;
+
+  const room = state.rooms.find(r => r.name === assignment.room);
+  const dayName = DAYS[assignment.dayIndex] || '?';
+  const timeLabel = state.timeSlots[assignment.timeIndex]?.label || '?';
+
+  // Check status
+  const issues = [];
+  if (room && course.students > room.capacity) {
+    issues.push(`Kapasitas kurang (${room.capacity} < ${course.students})`);
+  }
+  if (course.lecturerAvailability && course.lecturerAvailability.length > 0 &&
+    !course.lecturerAvailability.includes(assignment.dayIndex)) {
+    issues.push(`Dosen tidak tersedia hari ${dayName}`);
+  }
+
+  const statusHtml = issues.length > 0
+    ? `<div class="tooltip-status tooltip-bad">⚠️ ${issues.join(', ')}</div>`
+    : `<div class="tooltip-status tooltip-ok">✅ Tidak ada konflik</div>`;
+
+  const availDays = (course.lecturerAvailability || [0,1,2,3,4]).map(d => DAYS[d]?.slice(0,3)).join(', ');
+
+  const tooltip = document.getElementById('tooltip');
+  tooltip.innerHTML = `
+    <div class="tooltip-title">
+      <span style="color:${course.color}">●</span> ${course.name}
+    </div>
+    <div class="tooltip-row"><span>Dosen</span><span>${course.lecturer}</span></div>
+    <div class="tooltip-row"><span>SKS</span><span>${course.sks}</span></div>
+    <div class="tooltip-row"><span>Mahasiswa</span><span>${course.students || '?'}</span></div>
+    <div class="tooltip-row"><span>Ruangan</span><span>${assignment.room}${room ? ` (kap. ${room.capacity})` : ''}</span></div>
+    <div class="tooltip-row"><span>Jadwal</span><span>${dayName}, ${timeLabel}</span></div>
+    <div class="tooltip-row"><span>Semester</span><span>${course.semester || '?'}</span></div>
+    <div class="tooltip-row"><span>Hari Dosen</span><span>${availDays}</span></div>
+    ${statusHtml}
+  `;
+  tooltip.style.display = 'block';
+  requestAnimationFrame(() => tooltip.classList.add('show'));
+}
+
+function moveTooltip(e) {
+  const tooltip = document.getElementById('tooltip');
+  const x = e.clientX + 16;
+  const y = e.clientY + 16;
+  // Keep within viewport
+  const maxX = window.innerWidth - 320;
+  const maxY = window.innerHeight - 200;
+  tooltip.style.left = Math.min(x, maxX) + 'px';
+  tooltip.style.top = Math.min(y, maxY) + 'px';
+}
+
+function hideTooltip() {
+  const tooltip = document.getElementById('tooltip');
+  tooltip.classList.remove('show');
+  setTimeout(() => { tooltip.style.display = 'none'; }, 150);
+}
+
+// ============================================================
+// 16. FILTER CALENDAR
+// ============================================================
+
+function handleFilterTypeChange(e) {
+  const type = e.target.value;
+  const valueSelect = document.getElementById('filter-value');
+  
+  state.activeFilter.type = type;
+  state.activeFilter.value = '';
+
+  if (type === 'none') {
+    valueSelect.style.display = 'none';
+    // Re-render without filter
+    if (state.schedule) renderCalendar(state.schedule);
+    return;
+  }
+
+  // Populate filter value dropdown
+  valueSelect.innerHTML = '<option value="">— Semua —</option>';
+  let options = [];
+
+  if (type === 'lecturer') {
+    const lecturers = [...new Set(state.courses.map(c => c.lecturer))];
+    options = lecturers.map(l => ({ value: l, label: `👨‍🏫 ${l}` }));
+  } else if (type === 'room') {
+    options = state.rooms.map(r => ({ value: r.name, label: `🏢 ${r.name} (${r.capacity})` }));
+  } else if (type === 'semester') {
+    const semesters = [...new Set(state.courses.map(c => c.semester))].sort();
+    options = semesters.map(s => ({ value: String(s), label: `📚 Semester ${s}` }));
+  }
+
+  options.forEach(opt => {
+    const option = document.createElement('option');
+    option.value = opt.value;
+    option.textContent = opt.label;
+    valueSelect.appendChild(option);
+  });
+
+  valueSelect.style.display = 'inline-block';
+}
+
+function handleFilterValueChange(e) {
+  state.activeFilter.value = e.target.value;
+  if (state.schedule) renderCalendar(state.schedule);
+}
+
+function checkFilterMatch(course, assignment) {
+  const { type, value } = state.activeFilter;
+  if (!value) return true;
+  if (type === 'lecturer') return course.lecturer === value;
+  if (type === 'room') return assignment.room === value;
+  if (type === 'semester') return String(course.semester) === value;
+  return true;
+}
+
+// ============================================================
+// 17. VERSION MANAGEMENT
+// ============================================================
+
+function saveVersion() {
+  const nameInput = document.getElementById('input-version-name');
+  let name = nameInput.value.trim();
+  if (!name) {
+    name = `Versi ${state.versions.length + 1}`;
+  }
+
+  if (!state.schedule) {
+    showNotification('Generate jadwal terlebih dahulu sebelum menyimpan versi!', 'warning');
+    return;
+  }
+
+  const version = {
+    name,
+    date: new Date().toLocaleString('id-ID'),
+    schedule: JSON.parse(JSON.stringify(state.schedule)),
+    courses: JSON.parse(JSON.stringify(state.courses)),
+    rooms: JSON.parse(JSON.stringify(state.rooms)),
+    timeSlots: JSON.parse(JSON.stringify(state.timeSlots)),
+  };
+
+  state.versions.push(version);
+  renderVersionList();
+  nameInput.value = '';
+  saveState();
+  showNotification(`💾 Versi "${name}" berhasil disimpan!`, 'success');
+  addLog(`💾 Versi disimpan: ${name}`, 'success');
+}
+
+function loadVersion(index) {
+  const version = state.versions[index];
+  if (!version) return;
+
+  state.courses = JSON.parse(JSON.stringify(version.courses));
+  state.rooms = JSON.parse(JSON.stringify(version.rooms));
+  state.timeSlots = JSON.parse(JSON.stringify(version.timeSlots));
+  state.schedule = JSON.parse(JSON.stringify(version.schedule));
+
+  renderCourseList();
+  renderRoomList();
+  renderTimeSlotList();
+  renderLegend();
+  renderCalendar(state.schedule);
+  renderStats({ conflicts: 0, temperature: 0, iteration: 'Loaded', bestPenalty: 0 });
+  saveState();
+  showNotification(`📂 Versi "${version.name}" berhasil dimuat!`, 'success');
+  addLog(`📂 Memuat versi: ${version.name}`, 'info');
+}
+
+function deleteVersion(index) {
+  const name = state.versions[index].name;
+  state.versions.splice(index, 1);
+  renderVersionList();
+  saveState();
+  showNotification(`🗑️ Versi "${name}" dihapus.`, 'info');
+}
+
+function renderVersionList() {
+  const list = document.getElementById('version-list');
+  const countBadge = document.getElementById('version-count');
+  if (!list) return;
+
+  list.innerHTML = '';
+  countBadge.textContent = state.versions.length;
+
+  state.versions.forEach((version, index) => {
+    const item = document.createElement('div');
+    item.className = 'version-item';
+    item.innerHTML = `
+      <span class="version-name" title="${version.name}">${version.name}</span>
+      <span class="version-meta">${version.date}</span>
+      <button class="btn-icon" onclick="loadVersion(${index})" title="Muat versi">📂</button>
+      <button class="btn-icon" onclick="deleteVersion(${index})" title="Hapus versi">×</button>
+    `;
+    list.appendChild(item);
+  });
+}
+
+// ============================================================
+// 18. EXPORT EXCEL (SheetJS)
+// ============================================================
+
+function exportExcel() {
+  if (!state.schedule || state.courses.length === 0) {
+    showNotification('Generate jadwal terlebih dahulu!', 'warning');
+    return;
+  }
+
+  if (typeof XLSX === 'undefined') {
+    showNotification('Library SheetJS belum dimuat. Coba refresh halaman.', 'error');
+    return;
+  }
+
+  // Build data array
+  const data = [['Hari', 'Waktu', 'Mata Kuliah', 'Dosen', 'SKS', 'Jml Mahasiswa', 'Ruangan', 'Kapasitas', 'Semester']];
+
+  const entries = Object.entries(state.schedule).sort((a, b) => {
+    if (a[1].dayIndex !== b[1].dayIndex) return a[1].dayIndex - b[1].dayIndex;
+    return a[1].timeIndex - b[1].timeIndex;
+  });
+
+  for (const [courseId, slot] of entries) {
+    const course = state.courses.find(c => c.id === courseId);
+    if (!course) continue;
+    const timeLabel = state.timeSlots[slot.timeIndex]?.label || '';
+    const room = state.rooms.find(r => r.name === slot.room);
+    data.push([
+      DAYS[slot.dayIndex],
+      timeLabel,
+      course.name,
+      course.lecturer,
+      course.sks,
+      course.students || '',
+      slot.room,
+      room ? room.capacity : '',
+      course.semester || ''
+    ]);
+  }
+
+  const ws = XLSX.utils.aoa_to_sheet(data);
+  
+  // Set column widths
+  ws['!cols'] = [
+    { wch: 10 }, { wch: 16 }, { wch: 22 }, { wch: 14 },
+    { wch: 6 }, { wch: 14 }, { wch: 10 }, { wch: 10 }, { wch: 10 }
+  ];
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Jadwal Kuliah');
+  XLSX.writeFile(wb, 'jadwal_kuliah.xlsx');
+
+  showNotification('📊 Jadwal berhasil diekspor ke Excel!', 'success');
+  addLog('📊 Jadwal diekspor ke file jadwal_kuliah.xlsx', 'success');
+}
+
+// ============================================================
+// 19. EXPORT PDF (jsPDF + AutoTable)
+// ============================================================
+
+function exportPDF() {
+  if (!state.schedule || state.courses.length === 0) {
+    showNotification('Generate jadwal terlebih dahulu!', 'warning');
+    return;
+  }
+
+  if (typeof jspdf === 'undefined' && typeof window.jspdf === 'undefined') {
+    showNotification('Library jsPDF belum dimuat. Coba refresh halaman.', 'error');
+    return;
+  }
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+
+  // Title
+  doc.setFontSize(16);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Jadwal Kuliah', 148, 15, { align: 'center' });
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'normal');
+  doc.text(`Generated: ${new Date().toLocaleString('id-ID')}`, 148, 22, { align: 'center' });
+
+  // Build table data
+  const entries = Object.entries(state.schedule).sort((a, b) => {
+    if (a[1].dayIndex !== b[1].dayIndex) return a[1].dayIndex - b[1].dayIndex;
+    return a[1].timeIndex - b[1].timeIndex;
+  });
+
+  const body = entries.map(([courseId, slot]) => {
+    const course = state.courses.find(c => c.id === courseId);
+    if (!course) return null;
+    const timeLabel = state.timeSlots[slot.timeIndex]?.label || '';
+    const room = state.rooms.find(r => r.name === slot.room);
+    return [
+      DAYS[slot.dayIndex],
+      timeLabel,
+      course.name,
+      course.lecturer,
+      course.sks,
+      course.students || '-',
+      slot.room,
+      room ? room.capacity : '-',
+    ];
+  }).filter(Boolean);
+
+  doc.autoTable({
+    startY: 28,
+    head: [['Hari', 'Waktu', 'Mata Kuliah', 'Dosen', 'SKS', 'Mahasiswa', 'Ruangan', 'Kapasitas']],
+    body,
+    styles: {
+      fontSize: 8,
+      cellPadding: 3,
+    },
+    headStyles: {
+      fillColor: [94, 106, 210],
+      textColor: 255,
+      fontStyle: 'bold',
+    },
+    alternateRowStyles: {
+      fillColor: [245, 247, 255],
+    },
+    theme: 'grid',
+  });
+
+  doc.save('jadwal_kuliah.pdf');
+
+  showNotification('📄 Jadwal berhasil diekspor ke PDF!', 'success');
+  addLog('📄 Jadwal diekspor ke file jadwal_kuliah.pdf', 'success');
 }

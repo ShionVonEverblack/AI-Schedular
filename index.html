@@ -67,6 +67,17 @@
                 <option value="avoid-evening">Hindari Sore</option>
               </select>
             </div>
+            <!-- Ketersediaan Dosen -->
+            <div class="availability-row">
+              <span class="availability-label">📆 Hari Dosen:</span>
+              <div class="availability-checks">
+                <label><input type="checkbox" name="avail-day" value="0" checked /> Sen</label>
+                <label><input type="checkbox" name="avail-day" value="1" checked /> Sel</label>
+                <label><input type="checkbox" name="avail-day" value="2" checked /> Rab</label>
+                <label><input type="checkbox" name="avail-day" value="3" checked /> Kam</label>
+                <label><input type="checkbox" name="avail-day" value="4" checked /> Jum</label>
+              </div>
+            </div>
             <button type="submit" class="btn btn-add btn-sm">+ Tambah Matkul</button>
           </form>
         </div>
@@ -104,13 +115,35 @@
           </form>
         </div>
 
+        <!-- Panel: Versi Jadwal -->
+        <div class="panel">
+          <div class="panel-header">
+            <h3>📂 Versi Jadwal</h3>
+            <span class="count-badge" id="version-count">0</span>
+          </div>
+          <div class="item-list" id="version-list"></div>
+          <div class="form-row" style="gap: 4px;">
+            <input type="text" id="input-version-name" placeholder="Nama versi..." style="flex:1; padding:5px 8px; border-radius:6px; border:1px solid var(--border); background:var(--bg-surface); color:var(--text-primary); font-size:0.7rem; font-family:inherit;" />
+            <button id="btn-save-version" class="btn btn-add btn-sm" style="white-space:nowrap;">💾 Simpan</button>
+          </div>
+        </div>
+
         <!-- Panel: Aksi -->
         <div class="panel actions-panel">
           <button id="btn-preset" class="btn btn-secondary">📋 Load Preset</button>
           <button id="btn-generate" class="btn btn-primary">⚡ Generate Jadwal</button>
+          <!-- Progress Bar (hidden by default) -->
+          <div class="progress-container" id="progress-container" style="display:none;">
+            <div class="progress-bar" id="progress-bar"></div>
+            <span class="progress-text" id="progress-text">0%</span>
+          </div>
           <div class="form-row" style="gap: 6px;">
             <button id="btn-export" class="btn btn-secondary" style="flex:1;">💾 CSV</button>
             <button id="btn-export-png" class="btn btn-secondary" style="flex:1;">📸 PNG</button>
+          </div>
+          <div class="form-row" style="gap: 6px;">
+            <button id="btn-export-excel" class="btn btn-secondary" style="flex:1;">📊 Excel</button>
+            <button id="btn-export-pdf" class="btn btn-secondary" style="flex:1;">📄 PDF</button>
           </div>
           <div class="form-row" style="gap: 6px;">
             <button id="btn-import-csv" class="btn btn-secondary" style="flex:1;">📂 Import CSV</button>
@@ -131,8 +164,22 @@
               📅 Jadwal Kuliah 
               <button id="btn-print" class="btn btn-secondary btn-sm" style="margin-left: 12px; padding: 4px 8px;">🖨️ Cetak</button>
             </h2>
-            <div class="calendar-legend" id="calendar-legend"></div>
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <!-- Filter Dropdown -->
+              <div class="filter-group">
+                <select id="filter-type" class="filter-select">
+                  <option value="none">🔍 Semua</option>
+                  <option value="lecturer">👨‍🏫 Dosen</option>
+                  <option value="room">🏢 Ruangan</option>
+                  <option value="semester">📚 Semester</option>
+                </select>
+                <select id="filter-value" class="filter-select" style="display:none;">
+                  <option value="">— Pilih —</option>
+                </select>
+              </div>
+            </div>
           </div>
+          <div class="calendar-legend" id="calendar-legend"></div>
           <div class="calendar-grid" id="calendar-grid">
             <!-- Dibuat oleh app.js -->
           </div>
@@ -198,11 +245,17 @@
     </div>
   </div>
 
+  <!-- Tooltip Container -->
+  <div id="tooltip" class="tooltip" style="display:none;"></div>
+
   <!-- Notification Container -->
   <div id="notification-container"></div>
 
-  <!-- html2canvas CDN for PNG export -->
+  <!-- CDN Libraries -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 
   <!-- Scripts (urutan: data → graph → solver → app) -->
   <script src="data.js"></script>

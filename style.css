@@ -984,7 +984,237 @@ body {
 }
 
 /* ============================================================
-   13. PRINT MEDIA
+   14. TOOLTIP
+   ============================================================ */
+.tooltip {
+  position: fixed;
+  z-index: 9999;
+  max-width: 300px;
+  padding: 12px 16px;
+  border-radius: var(--radius-md);
+  background: var(--bg-card);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-md);
+  backdrop-filter: blur(16px);
+  font-size: 0.72rem;
+  line-height: 1.6;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(4px);
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.tooltip.show {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.tooltip-title {
+  font-weight: 700;
+  font-size: 0.8rem;
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tooltip-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 2px 0;
+  color: var(--text-secondary);
+}
+
+.tooltip-row span:last-child {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.tooltip-status {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--border);
+  font-weight: 600;
+}
+
+.tooltip-ok { color: var(--success); }
+.tooltip-warn { color: var(--warning); }
+.tooltip-bad { color: var(--danger); }
+
+/* ============================================================
+   15. FILTER TOOLBAR
+   ============================================================ */
+.filter-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.filter-select {
+  padding: 5px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font-size: 0.7rem;
+  font-family: inherit;
+  outline: none;
+  cursor: pointer;
+  transition: border-color 0.15s ease;
+}
+
+.filter-select:focus {
+  border-color: var(--accent);
+}
+
+/* Dimmed card when filtered out */
+.course-card.filtered-out {
+  opacity: 0.12 !important;
+  filter: grayscale(1);
+  pointer-events: none;
+  transition: opacity 0.3s ease, filter 0.3s ease;
+}
+
+/* ============================================================
+   16. DRAG VALIDATION HIGHLIGHTS
+   ============================================================ */
+.calendar-cell.drop-valid {
+  background: rgba(16, 185, 129, 0.08) !important;
+  border: 1px dashed var(--success) !important;
+}
+
+.calendar-cell.drop-invalid {
+  background: rgba(239, 68, 68, 0.08) !important;
+  border: 1px dashed var(--danger) !important;
+  cursor: not-allowed;
+}
+
+.calendar-cell.drop-warning {
+  background: rgba(245, 158, 11, 0.08) !important;
+  border: 1px dashed var(--warning) !important;
+}
+
+/* ============================================================
+   17. VERSION MANAGEMENT
+   ============================================================ */
+.version-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-surface);
+  border: 1px solid rgba(255,255,255,0.02);
+  transition: all 0.15s ease;
+  animation: fadeSlideIn 0.2s ease;
+  font-size: 0.7rem;
+  cursor: pointer;
+}
+
+.version-item:hover {
+  background: var(--bg-hover);
+  border-color: var(--border);
+}
+
+.version-item.active {
+  border-color: var(--accent);
+  background: rgba(94, 106, 210, 0.08);
+}
+
+.version-name {
+  flex: 1;
+  font-weight: 500;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.version-meta {
+  font-size: 0.6rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+/* ============================================================
+   18. LECTURER AVAILABILITY CHECKBOXES
+   ============================================================ */
+.availability-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.availability-label {
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.availability-checks {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.availability-checks label {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 0.65rem;
+  color: var(--text-secondary);
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.availability-checks label:hover {
+  border-color: var(--accent);
+}
+
+.availability-checks input[type="checkbox"] {
+  width: 12px;
+  height: 12px;
+  accent-color: var(--accent);
+}
+
+/* ============================================================
+   19. PROGRESS BAR
+   ============================================================ */
+.progress-container {
+  width: 100%;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--bg-surface);
+  overflow: hidden;
+  position: relative;
+}
+
+.progress-bar {
+  height: 100%;
+  width: 0%;
+  border-radius: 3px;
+  background: var(--gradient-primary);
+  transition: width 0.1s ease;
+}
+
+.progress-text {
+  position: absolute;
+  top: -18px;
+  right: 0;
+  font-size: 0.6rem;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+/* ============================================================
+   20. PRINT MEDIA
    ============================================================ */
 @media print {
   body { background: #fff !important; color: #000 !important; }

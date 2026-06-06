@@ -53,6 +53,13 @@ function greedyColoring(graph, courses, slots, roomCapacities) {
     for (const slot of slots) {
       let conflict = false;
 
+      // Cek ketersediaan dosen di hari ini
+      if (course.lecturerAvailability && course.lecturerAvailability.length > 0) {
+        if (!course.lecturerAvailability.includes(slot.dayIndex)) {
+          continue; // Dosen tidak tersedia di hari ini
+        }
+      }
+
       // Cek kapasitas ruangan vs jumlah mahasiswa
       if (roomCapacities && course.students) {
         const roomCap = roomCapacities[slot.room];
@@ -162,6 +169,14 @@ function calculateFitness(schedule, graph, courses, timeSlotsCount, roomCapaciti
     if (roomCapacities && course && course.students) {
       const roomCap = roomCapacities[slot.room];
       if (roomCap !== undefined && course.students > roomCap) {
+        totalPenalty += 10;
+        hardConflicts++;
+      }
+    }
+
+    // Hard Constraint: Ketersediaan dosen
+    if (course && course.lecturerAvailability && course.lecturerAvailability.length > 0) {
+      if (!course.lecturerAvailability.includes(slot.dayIndex)) {
         totalPenalty += 10;
         hardConflicts++;
       }
@@ -382,6 +397,56 @@ async function simulatedAnnealing(graph, courses, slots, config, onStep, roomCap
     accepted,
     rejected,
   };
+}
+
+// ============================================================
+// 5. VALIDATE DROP — Cek apakah drop valid
+// ============================================================
+
+function validateDrop(courseId, dayIndex, timeIndex, schedule, courses, rooms) {
+  const issues = [];
+  const course = courses.find(c => c.id === courseId);
+  if (!course) return { valid: false, issues: ['Matkul tidak ditemukan'] };
+
+  const assignment = schedule[courseId];
+  const roomName = assignment ? assignment.room : null;
+
+  // 1. Cek ketersediaan dosen
+  if (course.lecturerAvailability && course.lecturerAvailability.length > 0) {
+    if (!course.lecturerAvailability.includes(dayIndex)) {
+      issues.push(`Dosen tidak tersedia hari ${['Senin','Selasa','Rabu','Kamis','Jumat'][dayIndex]}`);
+    }
+  }
+
+  // 2. Cek apakah ada matkul lain oleh dosen yang sama di waktu yang sama
+  for (const [id, slot] of Object.entries(schedule)) {
+    if (id === courseId) continue;
+    if (slot.dayIndex === dayIndex && slot.timeIndex === timeIndex) {
+      const otherCourse = courses.find(c => c.id === id);
+      if (otherCourse && otherCourse.lecturer === course.lecturer) {
+        issues.push(`Dosen ${course.lecturer} sudah mengajar di waktu ini`);
+      }
+    }
+  }
+
+  // 3. Cek kapasitas ruangan
+  if (roomName) {
+    const room = rooms.find(r => r.name === roomName);
+    if (room && course.students > room.capacity) {
+      issues.push(`Kapasitas ruangan ${roomName} (${room.capacity}) < mahasiswa (${course.students})`);
+    }
+  }
+
+  // 4. Cek apakah cell sudah ditempati matkul lain
+  for (const [id, slot] of Object.entries(schedule)) {
+    if (id === courseId) continue;
+    if (slot.dayIndex === dayIndex && slot.timeIndex === timeIndex) {
+      const otherCourse = courses.find(c => c.id === id);
+      issues.push(`Bentrok dengan ${otherCourse ? otherCourse.name : id}`);
+    }
+  }
+
+  return { valid: issues.length === 0, issues };
 }
 
 // ============================================================
