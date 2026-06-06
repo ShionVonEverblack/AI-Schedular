@@ -154,7 +154,8 @@ Output: Jadwal optimal (target: 0 konflik)
 
 ## 📸 Screenshot
 
-> Buka `index.html` dan klik "Load Preset" → "Generate Jadwal" untuk melihat tampilan live.
+![Tampilan AI Auto-Scheduler — Dark Mode dengan jadwal yang sudah di-generate](screenshot.png)
+*Tampilan utama: Sidebar input, kalender jadwal dengan warna matkul, statistik AI, dan graf konflik.*
 
 ---
 
