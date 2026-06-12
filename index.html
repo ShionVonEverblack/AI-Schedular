@@ -28,6 +28,11 @@
         </div>
       </div>
       <div class="header-right">
+        <button id="btn-undo" class="btn btn-secondary btn-sm" title="Undo (Ctrl+Z)" disabled>↩️</button>
+        <button id="btn-redo" class="btn btn-secondary btn-sm" title="Redo (Ctrl+Y)" disabled>↪️</button>
+        <div class="shortcut-hints">
+          <span class="shortcut-badge" title="Ctrl+Z Undo, Ctrl+Y Redo, Ctrl+S Save, Ctrl+G Generate, Ctrl+E Export">⌨️ Shortcuts</span>
+        </div>
         <button id="btn-theme-toggle" class="btn btn-secondary" title="Ganti Mode Terang/Gelap">
           <span id="theme-icon">🌓</span> Mode
         </button>
@@ -42,8 +47,13 @@
       <!-- ──────────── SIDEBAR ──────────── -->
       <aside class="sidebar">
 
+        <!-- Search Box -->
+        <div class="search-box">
+          <input type="text" id="sidebar-search" placeholder="🔍 Cari matkul, dosen, ruangan..." autocomplete="off" />
+        </div>
+
         <!-- Panel: Mata Kuliah -->
-        <div class="panel">
+        <div class="panel" data-searchable>
           <div class="panel-header">
             <h3>📚 Mata Kuliah</h3>
             <span class="count-badge" id="course-count">0</span>
@@ -83,7 +93,7 @@
         </div>
 
         <!-- Panel: Ruangan -->
-        <div class="panel">
+        <div class="panel" data-searchable>
           <div class="panel-header">
             <h3>🏢 Ruangan</h3>
             <span class="count-badge" id="room-count">0</span>
@@ -220,6 +230,28 @@
           </div>
         </div>
 
+        <!-- Dashboard Analytics -->
+        <div class="dashboard-panel" id="dashboard-panel" style="display:none;">
+          <div class="dashboard-header">
+            <h3>📊 Dashboard Statistik</h3>
+            <button id="btn-toggle-dashboard" class="btn btn-secondary btn-sm">▼ Tutup</button>
+          </div>
+          <div class="dashboard-charts">
+            <div class="chart-card">
+              <h4>🏢 Utilisasi Ruangan</h4>
+              <canvas id="chart-room-util"></canvas>
+            </div>
+            <div class="chart-card">
+              <h4>👨‍🏫 Beban Dosen</h4>
+              <canvas id="chart-lecturer-load"></canvas>
+            </div>
+            <div class="chart-card">
+              <h4>📅 Distribusi per Hari</h4>
+              <canvas id="chart-day-dist"></canvas>
+            </div>
+          </div>
+        </div>
+
         <!-- Bottom Panels -->
         <div class="bottom-panels">
           <!-- Log Panel -->
@@ -251,11 +283,51 @@
   <!-- Notification Container -->
   <div id="notification-container"></div>
 
+  <!-- Onboarding Modal -->
+  <div id="onboarding-overlay" class="onboarding-overlay" style="display:none;">
+    <div class="onboarding-card">
+      <div class="onboarding-close" id="onboarding-close">×</div>
+      <div class="onboarding-step" data-step="0">
+        <div class="onboarding-emoji">📅</div>
+        <h2>Selamat Datang di AI Auto-Scheduler!</h2>
+        <p>Aplikasi penjadwalan kuliah otomatis berbasis kecerdasan buatan. Mari mulai tur singkat.</p>
+      </div>
+      <div class="onboarding-step" data-step="1" style="display:none;">
+        <div class="onboarding-emoji">📚</div>
+        <h2>1. Tambahkan Data</h2>
+        <p>Isi mata kuliah, ruangan, dan jam kuliah di <strong>sidebar kiri</strong>. Atau klik <strong>"📋 Load Preset"</strong> untuk data contoh.</p>
+      </div>
+      <div class="onboarding-step" data-step="2" style="display:none;">
+        <div class="onboarding-emoji">⚡</div>
+        <h2>2. Generate Jadwal</h2>
+        <p>Klik <strong>"⚡ Generate Jadwal"</strong> dan saksikan AI menyusun jadwal optimal tanpa konflik.</p>
+      </div>
+      <div class="onboarding-step" data-step="3" style="display:none;">
+        <div class="onboarding-emoji">🖱️</div>
+        <h2>3. Modifikasi & Export</h2>
+        <p><strong>Drag & drop</strong> kartu untuk penyesuaian manual. Lalu export ke <strong>CSV, Excel, PDF, atau PNG</strong>. Gunakan <strong>Ctrl+Z</strong> untuk undo!</p>
+      </div>
+      <div class="onboarding-nav">
+        <div class="onboarding-dots">
+          <span class="onboarding-dot active" data-dot="0"></span>
+          <span class="onboarding-dot" data-dot="1"></span>
+          <span class="onboarding-dot" data-dot="2"></span>
+          <span class="onboarding-dot" data-dot="3"></span>
+        </div>
+        <div class="onboarding-buttons">
+          <button id="onboarding-skip" class="btn btn-secondary btn-sm">Lewati</button>
+          <button id="onboarding-next" class="btn btn-primary btn-sm">Selanjutnya →</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- CDN Libraries -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 
   <!-- Scripts (urutan: data → graph → solver → app) -->
   <script src="data.js"></script>

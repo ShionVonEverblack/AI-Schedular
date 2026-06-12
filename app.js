@@ -22,6 +22,8 @@ const state = {
   versions: [],     // Array of { name, date, schedule, courses, rooms, timeSlots }
   activeFilter: { type: 'none', value: '' },
   dragCourseId: null, // Currently dragged course for validation
+  history: [],       // Undo/Redo stack
+  historyIndex: -1,  // Current position in history
 };
 
 // ============================================================
@@ -66,6 +68,11 @@ function init() {
   // Set theme icon on load
   const currentTheme = document.documentElement.getAttribute('data-theme') || 'dark';
   document.getElementById('theme-icon').textContent = currentTheme === 'dark' ? '🌓' : '☀️';
+
+  // Show onboarding for first-time users
+  if (!localStorage.getItem('onboarding-done')) {
+    showOnboarding();
+  }
 }
 
 function setupEventListeners() {
@@ -86,6 +93,13 @@ function setupEventListeners() {
   document.getElementById('btn-save-version').addEventListener('click', saveVersion);
   document.getElementById('filter-type').addEventListener('change', handleFilterTypeChange);
   document.getElementById('filter-value').addEventListener('change', handleFilterValueChange);
+  document.getElementById('btn-undo').addEventListener('click', undo);
+  document.getElementById('btn-redo').addEventListener('click', redo);
+  document.getElementById('sidebar-search').addEventListener('input', handleSidebarSearch);
+  document.getElementById('btn-toggle-dashboard').addEventListener('click', toggleDashboard);
+
+  // Keyboard shortcuts
+  document.addEventListener('keydown', handleKeyboardShortcut);
   
   window.addEventListener('resize', () => {
     if (state.conflictGraph) drawGraph();
@@ -581,11 +595,16 @@ function renderCalendar(schedule) {
               course.lecturerAvailability.length > 0 && 
               !course.lecturerAvailability.includes(dayIndex);
 
+            // Multi-slot badge
+            const slotsNeeded = course.sks >= 4 ? 2 : 1;
+            const multiSlotBadge = slotsNeeded > 1 ? '<span class="multi-slot-badge">2 Slot</span>' : '';
+
             card.innerHTML = `
-              <span class="card-name" style="color: ${course.color}">${course.name}</span>
+              <span class="card-name" style="color: ${course.color}">${course.name}${multiSlotBadge}</span>
               <span class="card-detail">${course.lecturer} · ${course.students || '?'} mhs · Sem ${course.semester || '?'}</span>
               <span class="card-room">${capacityWarning || availWarning ? '⚠️' : '📍'} ${assignment.room}${room ? ` (${room.capacity})` : ''}</span>
             `;
+            if (slotsNeeded > 1) card.classList.add('multi-slot');
             if (capacityWarning) {
               card.classList.add('capacity-warning');
             }
@@ -600,6 +619,21 @@ function renderCalendar(schedule) {
             }
 
             cell.appendChild(card);
+          }
+        }
+      }
+
+      // Check if this cell is a continuation of a multi-slot course above
+      if (timeIndex > 0) {
+        for (const [courseId, assignment] of Object.entries(schedule)) {
+          const course = state.courses.find(c => c.id === courseId);
+          if (course && course.sks >= 4 && assignment.dayIndex === dayIndex && assignment.timeIndex === timeIndex - 1) {
+            cell.classList.add('continuation-cell');
+            const marker = document.createElement('div');
+            marker.className = 'continuation-marker';
+            marker.style.borderLeftColor = course.color;
+            marker.innerHTML = `↑ ${course.name} (lanjutan)`;
+            cell.appendChild(marker);
           }
         }
       }
@@ -823,6 +857,8 @@ async function generateSchedule() {
   }
 
   saveState();
+  pushHistory();
+  renderDashboard();
 }
 
 // ============================================================
@@ -1226,6 +1262,7 @@ function performDrop(courseId, dayIndex, timeIndex) {
     });
     renderCalendar(state.schedule);
     saveState();
+    pushHistory();
   }
 }
 

@@ -49,6 +49,7 @@ function greedyColoring(graph, courses, slots, roomCapacities) {
 
   for (const course of sorted) {
     let assigned = false;
+    const slotsNeeded = course.sks >= 4 ? 2 : 1;
 
     for (const slot of slots) {
       let conflict = false;
@@ -68,46 +69,64 @@ function greedyColoring(graph, courses, slots, roomCapacities) {
         }
       }
 
+      // Untuk multi-slot: cek apakah slot berikutnya tersedia
+      if (slotsNeeded > 1) {
+        const nextSlot = slots.find(s => s.dayIndex === slot.dayIndex && s.timeIndex === slot.timeIndex + 1 && s.room === slot.room);
+        if (!nextSlot) continue; // Tidak ada slot berurutan
+      }
+
       // Cek apakah slot ini bentrok dengan tetangga di graf konflik
-      // Tetangga = matkul yang TIDAK BOLEH bersamaan
       const neighbors = graph.getNeighbors(course.id);
       for (const neighborId of neighbors) {
         if (schedule[neighborId]) {
           const nSlot = schedule[neighborId];
-          // Dua matkul yang konflik tidak boleh di hari & waktu yang sama
-          if (nSlot.dayIndex === slot.dayIndex && nSlot.timeIndex === slot.timeIndex) {
-            conflict = true;
-            break;
+          const nSlotsNeeded = (courseLookup[neighborId]?.sks >= 4) ? 2 : 1;
+          // Cek overlap untuk semua slot yang digunakan
+          for (let s = 0; s < slotsNeeded; s++) {
+            for (let ns = 0; ns < nSlotsNeeded; ns++) {
+              if (nSlot.dayIndex === slot.dayIndex && (nSlot.timeIndex + ns) === (slot.timeIndex + s)) {
+                conflict = true;
+                break;
+              }
+            }
+            if (conflict) break;
           }
+          if (conflict) break;
         }
       }
 
-      // Cek apakah ruangan sudah terpakai di slot ini
+      // Cek apakah ruangan sudah terpakai di slot ini (dan slot berikutnya jika multi-slot)
       if (!conflict) {
-        for (const [, assignedSlot] of Object.entries(schedule)) {
-          if (
-            assignedSlot.dayIndex === slot.dayIndex &&
-            assignedSlot.timeIndex === slot.timeIndex &&
-            assignedSlot.room === slot.room
-          ) {
-            conflict = true;
-            break;
+        for (const [otherId, assignedSlot] of Object.entries(schedule)) {
+          const otherSlotsNeeded = (courseLookup[otherId]?.sks >= 4) ? 2 : 1;
+          for (let s = 0; s < slotsNeeded; s++) {
+            for (let os = 0; os < otherSlotsNeeded; os++) {
+              if (
+                assignedSlot.dayIndex === slot.dayIndex &&
+                (assignedSlot.timeIndex + os) === (slot.timeIndex + s) &&
+                assignedSlot.room === slot.room
+              ) {
+                conflict = true;
+                break;
+              }
+            }
+            if (conflict) break;
           }
+          if (conflict) break;
         }
       }
 
       if (!conflict) {
-        schedule[course.id] = { ...slot };
+        schedule[course.id] = { ...slot, span: slotsNeeded };
         assigned = true;
         break;
       }
     }
 
     // Fallback: jika tidak ada slot valid, assign random
-    // SA akan memperbaiki ini nanti
     if (!assigned) {
       const randomSlot = slots[Math.floor(Math.random() * slots.length)];
-      schedule[course.id] = { ...randomSlot };
+      schedule[course.id] = { ...randomSlot, span: slotsNeeded };
     }
   }
 
@@ -181,6 +200,11 @@ function calculateFitness(schedule, graph, courses, timeSlotsCount, roomCapaciti
         hardConflicts++;
       }
     }
+
+    // Hard Constraint: Multi-slot harus berurutan (jika span > 1)
+    if (course && course.sks >= 4 && slot.span !== 2) {
+      totalPenalty += 5;
+    }
   }
 
   return { penalty: totalPenalty, conflicts: hardConflicts };
@@ -192,19 +216,21 @@ function calculateFitness(schedule, graph, courses, timeSlotsCount, roomCapaciti
 // Pilih satu matkul secara acak, pindahkan ke slot waktu acak.
 // Ini adalah langkah "random successor" di pseudocode SA.
 
-function getNeighborState(schedule, slots) {
+function getNeighborState(schedule, slots, courses) {
   const newSchedule = {};
   for (const key of Object.keys(schedule)) {
     newSchedule[key] = { ...schedule[key] };
   }
 
   const courseIds = Object.keys(newSchedule);
-  const randomCourse = courseIds[Math.floor(Math.random() * courseIds.length)];
+  const randomCourseId = courseIds[Math.floor(Math.random() * courseIds.length)];
   const randomSlot = slots[Math.floor(Math.random() * slots.length)];
 
-  newSchedule[randomCourse] = { ...randomSlot };
+  // Preserve span for multi-slot courses
+  const oldSpan = newSchedule[randomCourseId]?.span || 1;
+  newSchedule[randomCourseId] = { ...randomSlot, span: oldSpan };
 
-  return { schedule: newSchedule, movedCourse: randomCourse };
+  return { schedule: newSchedule, movedCourse: randomCourseId };
 }
 
 // ============================================================
@@ -275,7 +301,8 @@ async function simulatedAnnealing(graph, courses, slots, config, onStep, roomCap
     // 1. Generate neighbor (pindahkan 1 matkul secara acak)
     const { schedule: neighborSchedule, movedCourse } = getNeighborState(
       currentSchedule,
-      slots
+      slots,
+      courses
     );
     const neighborResult = calculateFitness(neighborSchedule, graph, courses, timeSlotsCount, roomCapacities);
     const neighborPenalty = neighborResult.penalty;
