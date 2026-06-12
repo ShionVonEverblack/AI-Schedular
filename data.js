@@ -106,12 +106,24 @@ function buildConstraints(courses) {
         continue; // sudah ada edge, skip pengecekan semester
       }
 
+      // Ekstrak nama kelas (misal 'A', 'B', 'C' dari akhir nama matkul)
+      const classMatchA = a.name.match(/\s([A-Z0-9])$/i);
+      const classMatchB = b.name.match(/\s([A-Z0-9])$/i);
+      const classA = classMatchA ? classMatchA[1].toUpperCase() : '';
+      const classB = classMatchB ? classMatchB[1].toUpperCase() : '';
+
       // Constraint 2: Semester sama → mahasiswa harus bisa ambil keduanya
       if (a.semester === b.semester) {
+        // Pengecualian: Jika keduanya adalah kelas paralel yang berbeda (misal Kelas A dan Kelas B),
+        // maka mahasiswanya berbeda, sehingga BOLEH dijadwalkan bersamaan di waktu yang sama.
+        if (classA && classB && classA !== classB) {
+          continue; // Lewati pembuatan edge konflik
+        }
+
         constraints.push({
           courseA: a.id,
           courseB: b.id,
-          reason: `Semester sama (Sem ${a.semester})`,
+          reason: `Semester sama (Sem ${a.semester}${classA ? ' Kelas ' + classA : ''})`,
         });
       }
     }
