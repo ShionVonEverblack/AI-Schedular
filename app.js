@@ -858,6 +858,13 @@ async function generateSchedule() {
 
   saveState();
   pushHistory();
+  
+  // Show dashboard
+  const dashboardPanel = document.getElementById('dashboard-panel');
+  if (dashboardPanel) {
+    dashboardPanel.style.display = 'block';
+    document.getElementById('btn-toggle-dashboard').textContent = '▼ Tutup';
+  }
   renderDashboard();
 }
 
@@ -1628,6 +1635,7 @@ function loadVersion(index) {
   renderCalendar(state.schedule);
   renderStats({ conflicts: 0, temperature: 0, iteration: 'Loaded', bestPenalty: 0 });
   saveState();
+  pushHistory();
   showNotification(`📂 Versi "${version.name}" berhasil dimuat!`, 'success');
   addLog(`📂 Memuat versi: ${version.name}`, 'info');
 }
@@ -1790,4 +1798,325 @@ function exportPDF() {
 
   showNotification('📄 Jadwal berhasil diekspor ke PDF!', 'success');
   addLog('📄 Jadwal diekspor ke file jadwal_kuliah.pdf', 'success');
+}
+
+// ============================================================
+// 20. UNDO / REDO
+// ============================================================
+
+const MAX_HISTORY = 30;
+
+function pushHistory() {
+  if (!state.schedule) return;
+
+  // Truncate any forward history if we branched
+  if (state.historyIndex < state.history.length - 1) {
+    state.history = state.history.slice(0, state.historyIndex + 1);
+  }
+
+  // Deep clone current schedule
+  state.history.push(JSON.parse(JSON.stringify(state.schedule)));
+
+  // Cap history size
+  if (state.history.length > MAX_HISTORY) {
+    state.history.shift();
+  }
+
+  state.historyIndex = state.history.length - 1;
+  updateUndoRedoButtons();
+}
+
+function undo() {
+  if (state.historyIndex <= 0) {
+    showNotification('Tidak ada yang bisa di-undo.', 'info');
+    return;
+  }
+  state.historyIndex--;
+  state.schedule = JSON.parse(JSON.stringify(state.history[state.historyIndex]));
+  renderCalendar(state.schedule);
+  renderDashboard();
+  saveState();
+  updateUndoRedoButtons();
+  showNotification('↩️ Undo berhasil.', 'info');
+  addLog('↩️ Undo jadwal.', 'info');
+}
+
+function redo() {
+  if (state.historyIndex >= state.history.length - 1) {
+    showNotification('Tidak ada yang bisa di-redo.', 'info');
+    return;
+  }
+  state.historyIndex++;
+  state.schedule = JSON.parse(JSON.stringify(state.history[state.historyIndex]));
+  renderCalendar(state.schedule);
+  renderDashboard();
+  saveState();
+  updateUndoRedoButtons();
+  showNotification('↪️ Redo berhasil.', 'info');
+  addLog('↪️ Redo jadwal.', 'info');
+}
+
+function updateUndoRedoButtons() {
+  const undoBtn = document.getElementById('btn-undo');
+  const redoBtn = document.getElementById('btn-redo');
+  if (undoBtn) undoBtn.disabled = state.historyIndex <= 0;
+  if (redoBtn) redoBtn.disabled = state.historyIndex >= state.history.length - 1;
+}
+
+// ============================================================
+// 21. KEYBOARD SHORTCUTS
+// ============================================================
+
+function handleKeyboardShortcut(e) {
+  // Don't trigger in input/textarea/select
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
+
+  const isCtrl = e.ctrlKey || e.metaKey;
+
+  if (isCtrl && e.key === 'z') {
+    e.preventDefault();
+    undo();
+  } else if (isCtrl && e.key === 'y') {
+    e.preventDefault();
+    redo();
+  } else if (isCtrl && e.key === 's') {
+    e.preventDefault();
+    saveVersion();
+  } else if (isCtrl && e.key === 'g') {
+    e.preventDefault();
+    generateSchedule();
+  } else if (isCtrl && e.key === 'e') {
+    e.preventDefault();
+    exportExcel();
+  }
+}
+
+// ============================================================
+// 22. SIDEBAR SEARCH
+// ============================================================
+
+function handleSidebarSearch(e) {
+  const query = e.target.value.toLowerCase().trim();
+  
+  // Filter course items
+  const courseItems = document.querySelectorAll('#course-list .item');
+  courseItems.forEach(item => {
+    const text = item.textContent.toLowerCase();
+    if (query && !text.includes(query)) {
+      item.classList.add('search-hidden');
+    } else {
+      item.classList.remove('search-hidden');
+    }
+  });
+
+  // Filter room items
+  const roomItems = document.querySelectorAll('#room-list .item');
+  roomItems.forEach(item => {
+    const text = item.textContent.toLowerCase();
+    if (query && !text.includes(query)) {
+      item.classList.add('search-hidden');
+    } else {
+      item.classList.remove('search-hidden');
+    }
+  });
+
+  // Filter timeslot items
+  const timeItems = document.querySelectorAll('#timeslot-list .item');
+  timeItems.forEach(item => {
+    const text = item.textContent.toLowerCase();
+    if (query && !text.includes(query)) {
+      item.classList.add('search-hidden');
+    } else {
+      item.classList.remove('search-hidden');
+    }
+  });
+}
+
+// ============================================================
+// 23. ONBOARDING TUTORIAL
+// ============================================================
+
+function showOnboarding() {
+  const overlay = document.getElementById('onboarding-overlay');
+  if (!overlay) return;
+  overlay.style.display = 'flex';
+
+  let currentStep = 0;
+  const steps = overlay.querySelectorAll('.onboarding-step');
+  const dots = overlay.querySelectorAll('.onboarding-dot');
+  const nextBtn = document.getElementById('onboarding-next');
+  const skipBtn = document.getElementById('onboarding-skip');
+  const closeBtn = document.getElementById('onboarding-close');
+
+  function goToStep(index) {
+    steps.forEach(s => s.style.display = 'none');
+    dots.forEach(d => d.classList.remove('active'));
+    steps[index].style.display = 'block';
+    dots[index].classList.add('active');
+    currentStep = index;
+    nextBtn.textContent = index === steps.length - 1 ? 'Mulai! 🚀' : 'Selanjutnya →';
+  }
+
+  function closeOnboarding() {
+    overlay.style.display = 'none';
+    localStorage.setItem('onboarding-done', 'true');
+  }
+
+  nextBtn.addEventListener('click', () => {
+    if (currentStep < steps.length - 1) {
+      goToStep(currentStep + 1);
+    } else {
+      closeOnboarding();
+    }
+  });
+
+  skipBtn.addEventListener('click', closeOnboarding);
+  closeBtn.addEventListener('click', closeOnboarding);
+
+  // Dot navigation
+  dots.forEach(dot => {
+    dot.addEventListener('click', () => {
+      goToStep(parseInt(dot.dataset.dot));
+    });
+  });
+
+  goToStep(0);
+}
+
+// ============================================================
+// 24. DASHBOARD STATISTICS
+// ============================================================
+
+let chartInstances = {};
+
+function toggleDashboard() {
+  const panel = document.getElementById('dashboard-panel');
+  const btn = document.getElementById('btn-toggle-dashboard');
+  if (panel.style.display === 'none') {
+    panel.style.display = 'block';
+    btn.textContent = '▼ Tutup';
+    renderDashboard();
+  } else {
+    panel.style.display = 'none';
+    btn.textContent = '▲ Buka';
+  }
+}
+
+function renderDashboard() {
+  if (!state.schedule || state.courses.length === 0) return;
+  
+  const panel = document.getElementById('dashboard-panel');
+  if (panel.style.display === 'none') return;
+
+  const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+  const textColor = isLight ? '#334155' : '#e2e8f0';
+  const gridColor = isLight ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.06)';
+
+  // --- 1. Room Utilization (Doughnut) ---
+  const totalSlots = DAYS.length * state.timeSlots.filter(ts => !ts.locked).length;
+  const roomUsage = {};
+  state.rooms.forEach(r => { roomUsage[r.name] = 0; });
+  for (const [, assignment] of Object.entries(state.schedule)) {
+    if (roomUsage[assignment.room] !== undefined) {
+      roomUsage[assignment.room]++;
+    }
+  }
+
+  const roomLabels = Object.keys(roomUsage);
+  const roomData = roomLabels.map(r => roomUsage[r]);
+  const roomMax = roomLabels.map(() => totalSlots);
+  const roomColors = ['#6366f1', '#8b5cf6', '#a78bfa', '#c4b5fd', '#ddd6fe', '#ede9fe'];
+
+  renderChart('chart-room-util', 'doughnut', {
+    labels: roomLabels,
+    datasets: [{
+      data: roomData,
+      backgroundColor: roomColors.slice(0, roomLabels.length),
+      borderWidth: 0,
+      hoverOffset: 6,
+    }]
+  }, {
+    plugins: {
+      legend: { position: 'bottom', labels: { color: textColor, font: { size: 10 }, boxWidth: 10, padding: 8 } },
+      tooltip: { callbacks: { label: (ctx) => `${ctx.label}: ${ctx.raw}/${totalSlots} slot (${Math.round(ctx.raw/totalSlots*100)}%)` } }
+    },
+    cutout: '60%',
+  });
+
+  // --- 2. Lecturer Load (Bar) ---
+  const lecturerLoad = {};
+  for (const [courseId] of Object.entries(state.schedule)) {
+    const course = state.courses.find(c => c.id === courseId);
+    if (course) {
+      lecturerLoad[course.lecturer] = (lecturerLoad[course.lecturer] || 0) + 1;
+    }
+  }
+  const lecLabels = Object.keys(lecturerLoad);
+  const lecData = lecLabels.map(l => lecturerLoad[l]);
+
+  renderChart('chart-lecturer-load', 'bar', {
+    labels: lecLabels,
+    datasets: [{
+      label: 'Jml Matkul',
+      data: lecData,
+      backgroundColor: 'rgba(99, 102, 241, 0.6)',
+      borderColor: '#6366f1',
+      borderWidth: 1,
+      borderRadius: 4,
+    }]
+  }, {
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { ticks: { color: textColor, font: { size: 9 } }, grid: { display: false } },
+      y: { ticks: { color: textColor, stepSize: 1, font: { size: 9 } }, grid: { color: gridColor } }
+    },
+  });
+
+  // --- 3. Day Distribution (Bar) ---
+  const dayDist = [0, 0, 0, 0, 0];
+  for (const [, assignment] of Object.entries(state.schedule)) {
+    if (assignment.dayIndex >= 0 && assignment.dayIndex < 5) {
+      dayDist[assignment.dayIndex]++;
+    }
+  }
+
+  renderChart('chart-day-dist', 'bar', {
+    labels: DAYS.map(d => d.slice(0, 3)),
+    datasets: [{
+      label: 'Jml Matkul',
+      data: dayDist,
+      backgroundColor: ['#6366f1', '#8b5cf6', '#a78bfa', '#c084fc', '#d946ef'],
+      borderWidth: 0,
+      borderRadius: 4,
+    }]
+  }, {
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { ticks: { color: textColor, font: { size: 9 } }, grid: { display: false } },
+      y: { ticks: { color: textColor, stepSize: 1, font: { size: 9 } }, grid: { color: gridColor } }
+    },
+  });
+}
+
+function renderChart(canvasId, type, data, options) {
+  if (typeof Chart === 'undefined') return;
+
+  // Destroy existing chart if any
+  if (chartInstances[canvasId]) {
+    chartInstances[canvasId].destroy();
+  }
+
+  const ctx = document.getElementById(canvasId);
+  if (!ctx) return;
+
+  chartInstances[canvasId] = new Chart(ctx, {
+    type,
+    data,
+    options: {
+      responsive: true,
+      maintainAspectRatio: true,
+      animation: { duration: 600, easing: 'easeOutQuart' },
+      ...options,
+    }
+  });
 }

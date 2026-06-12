@@ -30,6 +30,18 @@ Aplikasi penjadwalan kuliah otomatis cerdas berbasis web murni. Dibangun untuk m
 - **Filter Tampilan Jadwal** — Filter kalender berdasarkan **Dosen**, **Ruangan**, atau **Semester**. Kartu yang tidak cocok otomatis meredup.
 - **Inline Edit** — Edit nama/dosen/kapasitas langsung di sidebar tanpa perlu hapus & buat ulang.
 - **Lock Timeslot** — Kunci jam tertentu sebagai waktu istirahat (tidak akan dipakai AI).
+- **Undo/Redo** — Batalkan atau ulangi perubahan jadwal (drag, generate, load versi) dengan tombol atau `Ctrl+Z`/`Ctrl+Y`.
+- **Pencarian Cepat** — Search box di sidebar untuk menemukan matkul, dosen, atau ruangan secara instan.
+- **Onboarding Tutorial** — Panduan interaktif 4 langkah untuk pengguna baru (muncul otomatis pertama kali).
+- **Keyboard Shortcuts** — `Ctrl+Z` Undo, `Ctrl+Y` Redo, `Ctrl+S` Simpan Versi, `Ctrl+G` Generate, `Ctrl+E` Export Excel.
+
+### 📐 Multi-SKS (Multi-Slot)
+- **Matkul 4 SKS = 2 Slot Berurutan** — AI otomatis menempatkan matkul 4 SKS di 2 jam berturutan (misalnya 08-10 + 10-12) dengan ruangan yang sama. Badge "2 Slot" tampil di kartu.
+
+### 📊 Dashboard Statistik
+- **Donut Chart** — Utilisasi ruangan (berapa slot terpakai dari total).
+- **Bar Chart** — Beban dosen (jumlah matkul per dosen).
+- **Bar Chart** — Distribusi matkul per hari (Senin-Jumat). Ditampilkan otomatis setelah generate.
 
 ### 💾 Data Management
 - **Auto-Save** — Semua data otomatis tersimpan di `localStorage`. Refresh halaman? Data tetap ada.
