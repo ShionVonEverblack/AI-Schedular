@@ -160,15 +160,25 @@ function calculateFitness(schedule, graph, courses, timeSlotsCount, roomCapaciti
       const [idA, slotA] = entries[i];
       const [idB, slotB] = entries[j];
 
-      // Apakah keduanya di hari & waktu yang sama?
+      // Cek apakah keduanya bertumpuk waktu (mempertimbangkan span)
+      const spanA = slotA.span || 1;
+      const spanB = slotB.span || 1;
       const sameTime =
         slotA.dayIndex === slotB.dayIndex &&
-        slotA.timeIndex === slotB.timeIndex;
+        Math.max(slotA.timeIndex, slotB.timeIndex) <= Math.min(slotA.timeIndex + spanA - 1, slotB.timeIndex + spanB - 1);
 
       if (sameTime) {
-        // Aturan Ketat: Matkul tidak boleh menumpuk di waktu & hari yang sama
-        totalPenalty += 10;
-        hardConflicts++;
+        // Aturan Ketat: Tidak boleh di ruangan yang sama pada waktu yang sama
+        if (slotA.room === slotB.room) {
+          totalPenalty += 10;
+          hardConflicts++;
+        }
+        
+        // Aturan Ketat: Matkul yang memiliki konflik dosen/peserta tidak boleh bersamaan
+        if (graph && graph.isConflict(idA, idB)) {
+          totalPenalty += 10;
+          hardConflicts++;
+        }
       }
     }
 
@@ -464,12 +474,22 @@ function validateDrop(courseId, dayIndex, timeIndex, schedule, courses, rooms) {
     }
   }
 
-  // 4. Cek apakah cell sudah ditempati matkul lain
+  // 4. Cek apakah ruangan sudah ditempati matkul lain di waktu tersebut
   for (const [id, slot] of Object.entries(schedule)) {
     if (id === courseId) continue;
-    if (slot.dayIndex === dayIndex && slot.timeIndex === timeIndex) {
-      const otherCourse = courses.find(c => c.id === id);
-      issues.push(`Bentrok dengan ${otherCourse ? otherCourse.name : id}`);
+    
+    // Cek overlapping time
+    const spanOther = slot.span || 1;
+    const spanThis = assignment ? (assignment.span || 1) : 1;
+    const sameTime = 
+        slot.dayIndex === dayIndex &&
+        Math.max(slot.timeIndex, timeIndex) <= Math.min(slot.timeIndex + spanOther - 1, timeIndex + spanThis - 1);
+        
+    if (sameTime) {
+      if (slot.room === roomName) {
+        const otherCourse = courses.find(c => c.id === id);
+        issues.push(`Ruangan ${roomName} bentrok dengan ${otherCourse ? otherCourse.name : id}`);
+      }
     }
   }
 

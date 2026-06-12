@@ -1226,18 +1226,30 @@ function performDrop(courseId, dayIndex, timeIndex) {
     return;
   }
 
-  // Cek apakah sel tujuan sudah terisi matkul lain (tidak boleh numpuk)
+  // Cek apakah sel tujuan sudah terisi matkul lain di ruangan yang sama
   let isOccupied = false;
+  const assignmentToMove = state.schedule[courseId];
+  if (!assignmentToMove) return;
+
+  const roomName = assignmentToMove.room;
+  const spanThis = assignmentToMove.span || 1;
+
   for (const [id, assignment] of Object.entries(state.schedule)) {
-    if (id !== courseId && assignment.dayIndex === dayIndex && assignment.timeIndex === timeIndex) {
+    if (id === courseId) continue;
+    const spanOther = assignment.span || 1;
+    const sameTime = 
+        assignment.dayIndex === dayIndex &&
+        Math.max(assignment.timeIndex, timeIndex) <= Math.min(assignment.timeIndex + spanOther - 1, timeIndex + spanThis - 1);
+
+    if (sameTime && assignment.room === roomName) {
       isOccupied = true;
       break;
     }
   }
 
   if (isOccupied) {
-    showNotification('Gagal: Slot ini sudah terisi matkul lain!', 'warning');
-    addLog(`⚠️ Swap dibatalkan: Slot Hari ${dayIndex} Waktu ${timeIndex} penuh.`, 'warning');
+    showNotification(`Gagal: Ruangan ${roomName} sudah terpakai di waktu ini!`, 'warning');
+    addLog(`⚠️ Swap dibatalkan: Ruangan ${roomName} penuh pada Hari ${dayIndex} Waktu ${timeIndex}.`, 'warning');
     return;
   }
 
