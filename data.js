@@ -83,7 +83,7 @@ function generateAllSlots(rooms, timeSlots) {
 }
 
 // ============================================================
-// 6. FUNGSI: Bangun Constraints (Batasan Konflik)
+// 6. FUNGSI: Bangun Constraints (Batasan Konflik) 
 // ============================================================
 // Dua matkul TIDAK BOLEH dijadwalkan bersamaan jika:
 //   - Dosen yang mengajar sama, ATAU
