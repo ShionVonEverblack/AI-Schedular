@@ -14,11 +14,11 @@ Aplikasi penjadwalan kuliah otomatis cerdas berbasis web murni. Dibangun untuk m
 - **Progress Bar Real-Time** — Menampilkan persentase iterasi SA secara visual selama proses generate.
 
 ### 🔒 Hard Constraints (Aturan Ketat)
-- **1 Slot 1 Matkul** — Tidak mengizinkan kelas menumpuk di waktu & hari yang sama.
+- **Kelas Paralel (Multi-Room)** — Beberapa kelas dapat dijadwalkan secara paralel di satu slot waktu yang sama, asalkan ditempatkan di **ruangan yang berbeda**.
 - **Kapasitas Ruangan** — AI tidak akan menaruh 45 mahasiswa di ruangan berkapasitas 30.
 - **Ketersediaan Dosen** — Setiap mata kuliah bisa diatur hari-hari dosen mengajar (Sen–Jum). AI akan menghindari hari yang tidak tersedia.
-- **Semester Sama** — Mata kuliah di semester yang sama otomatis tidak boleh dijadwalkan bersamaan.
-- **Dosen Sama** — Mata kuliah dengan dosen yang sama otomatis tidak boleh bentrok.
+- **Kelas & Semester Sama** — Mata kuliah di semester yang sama (dan bukan kelas paralel seperti Kelas A vs Kelas B) otomatis tidak boleh dijadwalkan bersamaan. AI pintar membedakan kelas paralel dari nama matkul.
+- **Dosen Sama** — Mata kuliah dengan dosen yang sama otomatis tidak boleh bentrok di waktu yang sama.
 
 ### 🎯 Soft Constraints (Preferensi)
 - **Hindari Pagi / Sore** — Preferensi waktu per mata kuliah (penalti ringan jika dilanggar).
@@ -151,7 +151,8 @@ Output: Jadwal optimal (target: 0 konflik)
 ### Fitness Function
 | Jenis | Penalti | Deskripsi |
 |---|---|---|
-| Hard | +10 | Matkul menumpuk di hari & waktu sama |
+| Hard | +10 | Matkul menumpuk di **waktu yang sama** dan **ruangan yang sama** |
+| Hard | +10 | Matkul yang memiliki konflik dosen/kelas dijadwalkan bersamaan |
 | Hard | +10 | Mahasiswa > kapasitas ruangan |
 | Hard | +10 | Dosen dijadwalkan di hari tidak tersedia |
 | Soft | +2 | Preferensi waktu dilanggar |
@@ -166,7 +167,8 @@ Output: Jadwal optimal (target: 0 konflik)
 
 ## 📸 Screenshot
 
-![Tampilan AI Auto-Scheduler — Dark Mode dengan jadwal yang sudah di-generate](screenshot.png)
+![Tampilan Kalender Kelas Paralel](media__1780737767803.png)
+*(Note: Pastikan file `media__1780737767803.png` atau `screenshot.png` berada di folder yang sama)*
 *Tampilan utama: Sidebar input, kalender jadwal dengan warna matkul, statistik AI, dan graf konflik.*
 
 ---
