@@ -54,11 +54,9 @@ function greedyColoring(graph, courses, slots, roomCapacities) {
     for (const slot of slots) {
       let conflict = false;
 
-      // Cek ketersediaan dosen di hari ini
-      if (course.lecturerAvailability && course.lecturerAvailability.length > 0) {
-        if (!course.lecturerAvailability.includes(slot.dayIndex)) {
-          continue; // Dosen tidak tersedia di hari ini
-        }
+      // Cek ketersediaan dosen di hari dan jam ini
+      if (!isLecturerAvailable(course.lecturerAvailability, slot.dayIndex, slot.timeIndex)) {
+        continue; // Dosen tidak tersedia
       }
 
       // Cek kapasitas ruangan vs jumlah mahasiswa
@@ -204,8 +202,8 @@ function calculateFitness(schedule, graph, courses, timeSlotsCount, roomCapaciti
     }
 
     // Hard Constraint: Ketersediaan dosen
-    if (course && course.lecturerAvailability && course.lecturerAvailability.length > 0) {
-      if (!course.lecturerAvailability.includes(slot.dayIndex)) {
+    if (course) {
+      if (!isLecturerAvailable(course.lecturerAvailability, slot.dayIndex, slot.timeIndex)) {
         totalPenalty += 10;
         hardConflicts++;
       }
@@ -449,10 +447,8 @@ function validateDrop(courseId, dayIndex, timeIndex, schedule, courses, rooms) {
   const roomName = assignment ? assignment.room : null;
 
   // 1. Cek ketersediaan dosen
-  if (course.lecturerAvailability && course.lecturerAvailability.length > 0) {
-    if (!course.lecturerAvailability.includes(dayIndex)) {
-      issues.push(`Dosen tidak tersedia hari ${['Senin','Selasa','Rabu','Kamis','Jumat'][dayIndex]}`);
-    }
+  if (!isLecturerAvailable(course.lecturerAvailability, dayIndex, timeIndex)) {
+    issues.push(`Dosen tidak tersedia di waktu ini`);
   }
 
   // 2. Cek apakah ada matkul lain oleh dosen yang sama di waktu yang sama

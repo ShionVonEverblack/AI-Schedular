@@ -98,6 +98,12 @@ function setupEventListeners() {
   document.getElementById('sidebar-search').addEventListener('input', handleSidebarSearch);
   document.getElementById('btn-toggle-dashboard').addEventListener('click', toggleDashboard);
 
+  // Modal Availability
+  document.getElementById('btn-set-availability').addEventListener('click', openAvailabilityModal);
+  document.getElementById('btn-close-modal-avail').addEventListener('click', closeAvailabilityModal);
+  document.getElementById('btn-save-avail').addEventListener('click', saveAvailabilityModal);
+  document.getElementById('btn-reset-avail').addEventListener('click', resetAvailabilityModal);
+
   // Keyboard shortcuts
   document.addEventListener('keydown', handleKeyboardShortcut);
   
@@ -157,6 +163,83 @@ function loadState() {
 }
 
 // ============================================================
+// 2C. AVAILABILITY MODAL
+// ============================================================
+
+let tempAvailability = []; // Stores ["day-time"] strings temporarily
+
+function openAvailabilityModal() {
+  const modal = document.getElementById('modal-availability');
+  const gridContainer = document.getElementById('availability-grid-container');
+  const hiddenInput = document.getElementById('input-availability');
+  
+  // Parse current value
+  let currentVal = hiddenInput.value;
+  if (currentVal === 'all') {
+    tempAvailability = [];
+    for (let d = 0; d < DAYS.length; d++) {
+      for (let t = 0; t < state.timeSlots.length; t++) {
+        tempAvailability.push(`${d}-${t}`);
+      }
+    }
+  } else {
+    tempAvailability = JSON.parse(currentVal);
+  }
+
+  // Render Grid
+  let html = `<table class="avail-grid"><thead><tr><th>Hari / Jam</th>`;
+  for (let t = 0; t < state.timeSlots.length; t++) {
+    html += `<th>${state.timeSlots[t].start}</th>`;
+  }
+  html += `</tr></thead><tbody>`;
+
+  for (let d = 0; d < DAYS.length; d++) {
+    html += `<tr><td><strong>${DAYS[d]}</strong></td>`;
+    for (let t = 0; t < state.timeSlots.length; t++) {
+      const key = `${d}-${t}`;
+      const isChecked = tempAvailability.includes(key) ? 'checked' : '';
+      html += `<td><label><input type="checkbox" class="cb-avail" data-key="${key}" ${isChecked} /></label></td>`;
+    }
+    html += `</tr>`;
+  }
+  html += `</tbody></table>`;
+
+  gridContainer.innerHTML = html;
+  modal.style.display = 'flex';
+}
+
+function closeAvailabilityModal() {
+  document.getElementById('modal-availability').style.display = 'none';
+}
+
+function saveAvailabilityModal() {
+  const checkboxes = document.querySelectorAll('.cb-avail:checked');
+  tempAvailability = Array.from(checkboxes).map(cb => cb.dataset.key);
+  
+  const totalSlots = DAYS.length * state.timeSlots.length;
+  const hiddenInput = document.getElementById('input-availability');
+  const btn = document.getElementById('btn-set-availability');
+
+  if (tempAvailability.length === totalSlots) {
+    hiddenInput.value = 'all';
+    btn.textContent = 'Atur Waktu (Semua)';
+    btn.classList.remove('btn-primary');
+    btn.classList.add('btn-secondary');
+  } else {
+    hiddenInput.value = JSON.stringify(tempAvailability);
+    btn.textContent = `Atur Waktu (${tempAvailability.length} Jam)`;
+    btn.classList.remove('btn-secondary');
+    btn.classList.add('btn-primary');
+  }
+
+  closeAvailabilityModal();
+}
+
+function resetAvailabilityModal() {
+  document.querySelectorAll('.cb-avail').forEach(cb => cb.checked = true);
+}
+
+// ============================================================
 // 3. PRESET DATA
 // ============================================================
 
@@ -201,9 +284,23 @@ function handleAddCourse(e) {
   const preference = prefSelect ? prefSelect.value : 'none';
   const students = parseInt(studentsInput.value) || 30;
 
-  // Get lecturer availability from checkboxes
-  const availCheckboxes = document.querySelectorAll('input[name="avail-day"]:checked');
-  const lecturerAvailability = Array.from(availCheckboxes).map(cb => parseInt(cb.value));
+  // Get lecturer availability from hidden input
+  const availInput = document.getElementById('input-availability').value;
+  let lecturerAvailability = [];
+  if (availInput === 'all') {
+    // Fill all day-time slots
+    for (let d = 0; d < DAYS.length; d++) {
+      for (let t = 0; t < state.timeSlots.length; t++) {
+        lecturerAvailability.push(`${d}-${t}`);
+      }
+    }
+  } else {
+    try {
+      lecturerAvailability = JSON.parse(availInput);
+    } catch(e) {
+      lecturerAvailability = [];
+    }
+  }
 
   if (!name || !lecturer) return;
 
@@ -214,9 +311,14 @@ function handleAddCourse(e) {
   renderCourseList();
   renderLegend();
   e.target.reset();
+  
   // Reset default values
   document.getElementById('input-students').value = '30';
-  document.querySelectorAll('input[name="avail-day"]').forEach(cb => cb.checked = true);
+  document.getElementById('input-availability').value = 'all';
+  const btnAvail = document.getElementById('btn-set-availability');
+  btnAvail.textContent = 'Atur Waktu (Default: Semua)';
+  btnAvail.classList.remove('btn-primary');
+  btnAvail.classList.add('btn-secondary');
   saveState();
   showNotification(`"${name}" ditambahkan!`, 'success');
 }
@@ -591,9 +693,7 @@ function renderCalendar(schedule) {
             const capacityWarning = room && course.students > room.capacity;
 
             // Check lecturer availability warning
-            const availWarning = course.lecturerAvailability && 
-              course.lecturerAvailability.length > 0 && 
-              !course.lecturerAvailability.includes(dayIndex);
+            const availWarning = !isLecturerAvailable(course.lecturerAvailability, dayIndex, timeIndex);
 
             // Multi-slot badge
             const slotsNeeded = course.sks >= 4 ? 2 : 1;
@@ -1496,16 +1596,20 @@ function showTooltip(e) {
   if (room && course.students > room.capacity) {
     issues.push(`Kapasitas kurang (${room.capacity} < ${course.students})`);
   }
-  if (course.lecturerAvailability && course.lecturerAvailability.length > 0 &&
-    !course.lecturerAvailability.includes(assignment.dayIndex)) {
-    issues.push(`Dosen tidak tersedia hari ${dayName}`);
+  if (!isLecturerAvailable(course.lecturerAvailability, assignment.dayIndex, assignment.timeIndex)) {
+    issues.push(`Dosen tidak tersedia di waktu ini`);
   }
 
   const statusHtml = issues.length > 0
     ? `<div class="tooltip-status tooltip-bad">⚠️ ${issues.join(', ')}</div>`
     : `<div class="tooltip-status tooltip-ok">✅ Tidak ada konflik</div>`;
 
-  const availDays = (course.lecturerAvailability || [0,1,2,3,4]).map(d => DAYS[d]?.slice(0,3)).join(', ');
+  let availStr = "Bervariasi (Lihat Detail)";
+  if (!course.lecturerAvailability || course.lecturerAvailability.length === 0) {
+    availStr = "Semua Jam";
+  } else if (typeof course.lecturerAvailability[0] === 'number') {
+    availStr = course.lecturerAvailability.map(d => DAYS[d]?.slice(0,3)).join(', ');
+  }
 
   const tooltip = document.getElementById('tooltip');
   tooltip.innerHTML = `
@@ -1518,7 +1622,7 @@ function showTooltip(e) {
     <div class="tooltip-row"><span>Ruangan</span><span>${assignment.room}${room ? ` (kap. ${room.capacity})` : ''}</span></div>
     <div class="tooltip-row"><span>Jadwal</span><span>${dayName}, ${timeLabel}</span></div>
     <div class="tooltip-row"><span>Semester</span><span>${course.semester || '?'}</span></div>
-    <div class="tooltip-row"><span>Hari Dosen</span><span>${availDays}</span></div>
+    <div class="tooltip-row"><span>Ketersediaan</span><span>${availStr}</span></div>
     ${statusHtml}
   `;
   tooltip.style.display = 'block';

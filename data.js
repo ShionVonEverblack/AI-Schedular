@@ -19,6 +19,22 @@ const TIME_SLOTS = [
   { id: 3, label: '15:00 – 17:00', start: '15:00', end: '17:00', locked: false },
 ];
 
+/**
+ * Cek ketersediaan dosen berdasarkan array ketersediaan.
+ * Mendukung format lama (array integer hari) dan format baru (array string "hari-waktu").
+ */
+function isLecturerAvailable(availability, dayIndex, timeIndex) {
+  if (!availability || availability.length === 0) return true; // Default: selalu bisa
+
+  // Jika format lama (array of integer, e.g., [0, 1, 2])
+  if (typeof availability[0] === 'number') {
+    return availability.includes(dayIndex);
+  }
+
+  // Jika format baru (array of string, e.g., ["0-1", "0-2"])
+  return availability.includes(`${dayIndex}-${timeIndex}`);
+}
+
 // ============================================================
 // 2. PALET WARNA UNTUK KARTU MATA KULIAH
 // ============================================================
@@ -54,10 +70,12 @@ const PRESET_ROOMS = [
 // ============================================================
 
 const PRESET_COURSES = [
-  { id: 'MK01', name: 'Struktur Data',        sks: 3, lecturer: 'Dosen A', semester: 2, preference: 'none', students: 35, lecturerAvailability: [0,1,2,3,4] },
+  // Contoh Dosen A hanya bisa Senin Pagi (08:00, 10:00) dan Selasa Pagi (08:00)
+  { id: 'MK01', name: 'Struktur Data',        sks: 3, lecturer: 'Dosen A', semester: 2, preference: 'none', students: 35, lecturerAvailability: ["0-0", "0-1", "1-0"] },
   { id: 'MK02', name: 'Teori Graf',            sks: 3, lecturer: 'Dosen B', semester: 2, preference: 'none', students: 30, lecturerAvailability: [0,1,2,3,4] },
   { id: 'MK03', name: 'KDKA',                  sks: 3, lecturer: 'Dosen C', semester: 2, preference: 'avoid-morning', students: 40, lecturerAvailability: [0,1,2,3,4] },
-  { id: 'MK04', name: 'Probstat',              sks: 3, lecturer: 'Dosen D', semester: 2, preference: 'avoid-evening', students: 45, lecturerAvailability: [0,1,2,3,4] },
+  // Contoh Dosen D hanya bisa Rabu siang/sore
+  { id: 'MK04', name: 'Probstat',              sks: 3, lecturer: 'Dosen D', semester: 2, preference: 'avoid-evening', students: 45, lecturerAvailability: ["2-2", "2-3"] },
   { id: 'MK05', name: 'Arsikom',               sks: 3, lecturer: 'Dosen E', semester: 2, preference: 'none', students: 38, lecturerAvailability: [0,1,2,3,4] },
   { id: 'MK06', name: 'Bahasa Inggris',        sks: 2, lecturer: 'Dosen F', semester: 2, preference: 'none', students: 25, lecturerAvailability: [0,1,2,3,4] },
   { id: 'MK07', name: 'Agama Islam',           sks: 2, lecturer: 'Dosen G', semester: 2, preference: 'none', students: 50, lecturerAvailability: [0,1,2,3,4] },

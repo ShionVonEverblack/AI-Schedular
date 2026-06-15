@@ -78,17 +78,12 @@
               </select>
             </div>
             <!-- Ketersediaan Dosen -->
-            <div class="availability-row">
-              <span class="availability-label">📆 Hari Dosen:</span>
-              <div class="availability-checks">
-                <label><input type="checkbox" name="avail-day" value="0" checked /> Sen</label>
-                <label><input type="checkbox" name="avail-day" value="1" checked /> Sel</label>
-                <label><input type="checkbox" name="avail-day" value="2" checked /> Rab</label>
-                <label><input type="checkbox" name="avail-day" value="3" checked /> Kam</label>
-                <label><input type="checkbox" name="avail-day" value="4" checked /> Jum</label>
-              </div>
+            <div class="availability-row" style="display: flex; flex-direction: column; gap: 8px;">
+              <span class="availability-label">📆 Waktu Mengajar:</span>
+              <button type="button" id="btn-set-availability" class="btn btn-secondary btn-sm" style="width: 100%;">Atur Waktu (Default: Semua)</button>
+              <input type="hidden" id="input-availability" value="all" />
             </div>
-            <button type="submit" class="btn btn-add btn-sm">+ Tambah Matkul</button>
+            <button type="submit" class="btn btn-add btn-sm" style="margin-top: 10px;">+ Tambah Matkul</button>
           </form>
         </div>
 
@@ -291,6 +286,7 @@
         <div class="onboarding-emoji">📅</div>
         <h2>Selamat Datang di AI Auto-Scheduler!</h2>
         <p>Aplikasi penjadwalan kuliah otomatis berbasis kecerdasan buatan. Mari mulai tur singkat.</p>
+        <p>Gunakan desktop atau layar yang lebih besar untuk pengalaman terbaik.</p>
       </div>
       <div class="onboarding-step" data-step="1" style="display:none;">
         <div class="onboarding-emoji">📚</div>
@@ -318,6 +314,26 @@
           <button id="onboarding-skip" class="btn btn-secondary btn-sm">Lewati</button>
           <button id="onboarding-next" class="btn btn-primary btn-sm">Selanjutnya →</button>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Ketersediaan Dosen -->
+  <div id="modal-availability" class="modal-overlay" style="display: none;">
+    <div class="modal-content" style="max-width: 500px;">
+      <div class="modal-header">
+        <h3>Atur Ketersediaan Waktu Dosen</h3>
+        <button type="button" id="btn-close-modal-avail" class="btn-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 12px;">Centang jam berapa saja dosen ini <strong>BISA</strong> mengajar.</p>
+        <div id="availability-grid-container">
+          <!-- Grid tabel akan dirender dinamis via JavaScript -->
+        </div>
+      </div>
+      <div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px;">
+        <button type="button" id="btn-reset-avail" class="btn btn-secondary btn-sm">Pilih Semua</button>
+        <button type="button" id="btn-save-avail" class="btn btn-primary btn-sm">Simpan</button>
       </div>
     </div>
   </div>
