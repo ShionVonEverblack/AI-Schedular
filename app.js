@@ -104,6 +104,14 @@ function setupEventListeners() {
   document.getElementById('btn-save-avail').addEventListener('click', saveAvailabilityModal);
   document.getElementById('btn-reset-avail').addEventListener('click', resetAvailabilityModal);
 
+  // Modal Personal Export
+  document.getElementById('btn-personal-export').addEventListener('click', openPersonalExportModal);
+  document.getElementById('btn-close-modal-personal').addEventListener('click', closePersonalExportModal);
+  document.getElementById('btn-cancel-personal').addEventListener('click', closePersonalExportModal);
+  document.getElementById('btn-do-personal-export').addEventListener('click', doPersonalExport);
+  document.getElementById('personal-filter-type').addEventListener('change', updatePersonalFilterOptions);
+  document.getElementById('personal-filter-value').addEventListener('change', updatePersonalPreview);
+
   // Keyboard shortcuts
   document.addEventListener('keydown', handleKeyboardShortcut);
   
@@ -1914,6 +1922,275 @@ function exportPDF() {
 
   showNotification('📄 Jadwal berhasil diekspor ke PDF!', 'success');
   addLog('📄 Jadwal diekspor ke file jadwal_kuliah.pdf', 'success');
+}
+
+// ============================================================
+// 19B. PERSONAL EXPORT (Per Dosen / Per Kelas)
+// ============================================================
+
+function openPersonalExportModal() {
+  if (!state.schedule || state.courses.length === 0) {
+    showNotification('Generate jadwal terlebih dahulu!', 'warning');
+    return;
+  }
+
+  document.getElementById('modal-personal-export').style.display = 'flex';
+  updatePersonalFilterOptions();
+}
+
+function closePersonalExportModal() {
+  document.getElementById('modal-personal-export').style.display = 'none';
+}
+
+function updatePersonalFilterOptions() {
+  const filterType = document.getElementById('personal-filter-type').value;
+  const filterValueSelect = document.getElementById('personal-filter-value');
+  filterValueSelect.innerHTML = '<option value="">— Pilih —</option>';
+
+  if (filterType === 'lecturer') {
+    // Get unique lecturers
+    const lecturers = [...new Set(state.courses.map(c => c.lecturer))].sort();
+    lecturers.forEach(lec => {
+      const opt = document.createElement('option');
+      opt.value = lec;
+      opt.textContent = lec;
+      filterValueSelect.appendChild(opt);
+    });
+  } else if (filterType === 'class') {
+    // Extract classes from course names (e.g., "Basis Data A" → "A", "Pemrograman Web B" → "B")
+    const classSet = new Set();
+    state.courses.forEach(c => {
+      const match = c.name.match(/\s([A-Z])$/i);
+      if (match) {
+        classSet.add(match[1].toUpperCase());
+      }
+    });
+    // Also add course names as-is for non-class-based courses
+    if (classSet.size === 0) {
+      // Fallback: group by each course name
+      state.courses.forEach(c => {
+        const opt = document.createElement('option');
+        opt.value = c.name;
+        opt.textContent = c.name;
+        filterValueSelect.appendChild(opt);
+      });
+    } else {
+      const classes = [...classSet].sort();
+      classes.forEach(cls => {
+        const opt = document.createElement('option');
+        opt.value = cls;
+        opt.textContent = `Kelas ${cls}`;
+        filterValueSelect.appendChild(opt);
+      });
+    }
+  }
+
+  // Clear preview
+  const preview = document.getElementById('personal-preview');
+  preview.style.display = 'none';
+  preview.innerHTML = '';
+}
+
+function getFilteredEntries() {
+  if (!state.schedule) return [];
+
+  const filterType = document.getElementById('personal-filter-type').value;
+  const filterValue = document.getElementById('personal-filter-value').value;
+  if (!filterValue) return [];
+
+  const entries = Object.entries(state.schedule).sort((a, b) => {
+    if (a[1].dayIndex !== b[1].dayIndex) return a[1].dayIndex - b[1].dayIndex;
+    return a[1].timeIndex - b[1].timeIndex;
+  });
+
+  return entries.filter(([courseId]) => {
+    const course = state.courses.find(c => c.id === courseId);
+    if (!course) return false;
+
+    if (filterType === 'lecturer') {
+      return course.lecturer === filterValue;
+    } else if (filterType === 'class') {
+      const match = course.name.match(/\s([A-Z])$/i);
+      if (match) {
+        return match[1].toUpperCase() === filterValue.toUpperCase();
+      }
+      return course.name === filterValue;
+    }
+    return false;
+  });
+}
+
+function updatePersonalPreview() {
+  const entries = getFilteredEntries();
+  const preview = document.getElementById('personal-preview');
+
+  if (entries.length === 0) {
+    preview.style.display = 'none';
+    preview.innerHTML = '';
+    return;
+  }
+
+  let html = `<table class="avail-grid" style="font-size: 0.75rem;">
+    <thead><tr>
+      <th>Hari</th><th>Waktu</th><th>Mata Kuliah</th><th>Dosen</th><th>Ruangan</th>
+    </tr></thead><tbody>`;
+
+  for (const [courseId, slot] of entries) {
+    const course = state.courses.find(c => c.id === courseId);
+    if (!course) continue;
+    const timeLabel = state.timeSlots[slot.timeIndex]?.label || '';
+    html += `<tr>
+      <td>${DAYS[slot.dayIndex]}</td>
+      <td>${timeLabel}</td>
+      <td style="text-align:left; padding-left: 8px;">${course.name}</td>
+      <td>${course.lecturer}</td>
+      <td>${slot.room}</td>
+    </tr>`;
+  }
+
+  html += `</tbody></table>`;
+  preview.innerHTML = html;
+  preview.style.display = 'block';
+}
+
+function doPersonalExport() {
+  const filterType = document.getElementById('personal-filter-type').value;
+  const filterValue = document.getElementById('personal-filter-value').value;
+  const exportFormat = document.getElementById('personal-export-format').value;
+
+  if (!filterValue) {
+    showNotification('Pilih dosen atau kelas terlebih dahulu!', 'warning');
+    return;
+  }
+
+  const entries = getFilteredEntries();
+  if (entries.length === 0) {
+    showNotification('Tidak ada jadwal untuk filter yang dipilih.', 'warning');
+    return;
+  }
+
+  const label = filterType === 'lecturer' ? filterValue : `Kelas ${filterValue}`;
+  const safeFilename = label.replace(/[^a-zA-Z0-9]/g, '_');
+
+  if (exportFormat === 'pdf') {
+    exportPersonalPDF(entries, label, safeFilename);
+  } else if (exportFormat === 'excel') {
+    exportPersonalExcel(entries, label, safeFilename);
+  } else if (exportFormat === 'csv') {
+    exportPersonalCSV(entries, label, safeFilename);
+  }
+
+  closePersonalExportModal();
+}
+
+function exportPersonalPDF(entries, label, safeFilename) {
+  if (typeof window.jspdf === 'undefined') {
+    showNotification('Library jsPDF belum dimuat. Coba refresh halaman.', 'error');
+    return;
+  }
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+
+  // Title
+  doc.setFontSize(16);
+  doc.setFont('helvetica', 'bold');
+  doc.text(`Jadwal ${label}`, 148, 15, { align: 'center' });
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'normal');
+  doc.text(`Generated: ${new Date().toLocaleString('id-ID')}`, 148, 22, { align: 'center' });
+
+  const body = entries.map(([courseId, slot]) => {
+    const course = state.courses.find(c => c.id === courseId);
+    if (!course) return null;
+    const timeLabel = state.timeSlots[slot.timeIndex]?.label || '';
+    const room = state.rooms.find(r => r.name === slot.room);
+    return [
+      DAYS[slot.dayIndex],
+      timeLabel,
+      course.name,
+      course.lecturer,
+      course.sks,
+      course.students || '-',
+      slot.room,
+      room ? room.capacity : '-',
+    ];
+  }).filter(Boolean);
+
+  doc.autoTable({
+    startY: 28,
+    head: [['Hari', 'Waktu', 'Mata Kuliah', 'Dosen', 'SKS', 'Mahasiswa', 'Ruangan', 'Kapasitas']],
+    body,
+    styles: { fontSize: 8, cellPadding: 3 },
+    headStyles: { fillColor: [94, 106, 210], textColor: 255, fontStyle: 'bold' },
+    alternateRowStyles: { fillColor: [245, 247, 255] },
+    theme: 'grid',
+  });
+
+  doc.save(`jadwal_${safeFilename}.pdf`);
+  showNotification(`📄 Jadwal ${label} diekspor ke PDF!`, 'success');
+  addLog(`📄 Personal export: jadwal_${safeFilename}.pdf`, 'success');
+}
+
+function exportPersonalExcel(entries, label, safeFilename) {
+  if (typeof XLSX === 'undefined') {
+    showNotification('Library SheetJS belum dimuat. Coba refresh halaman.', 'error');
+    return;
+  }
+
+  const data = [['Hari', 'Waktu', 'Mata Kuliah', 'Dosen', 'SKS', 'Jml Mahasiswa', 'Ruangan', 'Kapasitas']];
+
+  for (const [courseId, slot] of entries) {
+    const course = state.courses.find(c => c.id === courseId);
+    if (!course) continue;
+    const timeLabel = state.timeSlots[slot.timeIndex]?.label || '';
+    const room = state.rooms.find(r => r.name === slot.room);
+    data.push([
+      DAYS[slot.dayIndex],
+      timeLabel,
+      course.name,
+      course.lecturer,
+      course.sks,
+      course.students || '',
+      slot.room,
+      room ? room.capacity : '',
+    ]);
+  }
+
+  const ws = XLSX.utils.aoa_to_sheet(data);
+  ws['!cols'] = [
+    { wch: 10 }, { wch: 16 }, { wch: 22 }, { wch: 14 },
+    { wch: 6 }, { wch: 14 }, { wch: 10 }, { wch: 10 }
+  ];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, `Jadwal ${label}`);
+  XLSX.writeFile(wb, `jadwal_${safeFilename}.xlsx`);
+
+  showNotification(`📊 Jadwal ${label} diekspor ke Excel!`, 'success');
+  addLog(`📊 Personal export: jadwal_${safeFilename}.xlsx`, 'success');
+}
+
+function exportPersonalCSV(entries, label, safeFilename) {
+  let csv = 'Hari,Waktu,Mata Kuliah,Dosen,SKS,Jumlah Mahasiswa,Ruangan,Kapasitas\n';
+
+  for (const [courseId, slot] of entries) {
+    const course = state.courses.find(c => c.id === courseId);
+    if (!course) continue;
+    const timeLabel = state.timeSlots[slot.timeIndex]?.label || '';
+    const room = state.rooms.find(r => r.name === slot.room);
+    const cap = room ? room.capacity : '';
+    csv += `${DAYS[slot.dayIndex]},${timeLabel},${course.name},${course.lecturer},${course.sks},${course.students || ''},${slot.room},${cap}\n`;
+  }
+
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = `jadwal_${safeFilename}.csv`;
+  link.click();
+  URL.revokeObjectURL(link.href);
+
+  showNotification(`💾 Jadwal ${label} diekspor ke CSV!`, 'success');
+  addLog(`💾 Personal export: jadwal_${safeFilename}.csv`, 'success');
 }
 
 // ============================================================
