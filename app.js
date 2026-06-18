@@ -51,6 +51,7 @@ function init() {
     renderVersionList();
     if (state.schedule) {
       renderCalendar(state.schedule);
+      renderConflictCenter();
       renderStats({ conflicts: 0, temperature: 0, iteration: 'Saved', bestPenalty: 0 });
     } else {
       renderCalendarEmpty();
@@ -78,6 +79,7 @@ function init() {
 function setupEventListeners() {
   document.getElementById('btn-preset').addEventListener('click', loadPreset);
   document.getElementById('btn-generate').addEventListener('click', generateSchedule);
+  document.getElementById('btn-autofix').addEventListener('click', autoFixConflicts);
   document.getElementById('btn-export').addEventListener('click', exportCSV);
   document.getElementById('btn-export-png').addEventListener('click', exportPNG);
   document.getElementById('btn-export-excel').addEventListener('click', exportExcel);
@@ -97,6 +99,7 @@ function setupEventListeners() {
   document.getElementById('btn-redo').addEventListener('click', redo);
   document.getElementById('sidebar-search').addEventListener('input', handleSidebarSearch);
   document.getElementById('btn-toggle-dashboard').addEventListener('click', toggleDashboard);
+  document.getElementById('btn-heatmap').addEventListener('click', toggleHeatmap);
 
   // Modal Availability
   document.getElementById('btn-set-availability').addEventListener('click', openAvailabilityModal);
@@ -806,6 +809,93 @@ function renderStats(data) {
 }
 
 // ============================================================
+// 8B. CONFLICT CENTER
+// ============================================================
+
+function renderConflictCenter() {
+  const panel = document.getElementById('conflict-center');
+  const list = document.getElementById('conflict-list');
+  const badge = document.getElementById('conflict-count-badge');
+
+  if (!state.schedule || Object.keys(state.schedule).length === 0) {
+    panel.style.display = 'none';
+    return;
+  }
+
+  panel.style.display = 'block';
+  const issues = [];
+  const entries = Object.entries(state.schedule);
+
+  for (let i = 0; i < entries.length; i++) {
+    const [idA, slotA] = entries[i];
+    const courseA = state.courses.find(c => c.id === idA);
+    if (!courseA) continue;
+
+    // Check lecturer availability
+    if (!isLecturerAvailable(courseA.lecturerAvailability, slotA.dayIndex, slotA.timeIndex)) {
+      const dayName = DAYS[slotA.dayIndex];
+      const timeLabel = state.timeSlots[slotA.timeIndex]?.label || '';
+      issues.push({ type: 'hard', icon: '🚫', text: `<strong>${courseA.name}</strong> — ${courseA.lecturer} tidak tersedia di ${dayName} ${timeLabel}` });
+    }
+
+    // Check room capacity
+    const room = state.rooms.find(r => r.name === slotA.room);
+    if (room && courseA.students > room.capacity) {
+      issues.push({ type: 'hard', icon: '🏢', text: `<strong>${courseA.name}</strong> — ${courseA.students} mahasiswa di ${slotA.room} (kapasitas ${room.capacity})` });
+    }
+
+    // Check soft constraints
+    if (courseA.preference === 'avoid-morning' && slotA.timeIndex === 0) {
+      issues.push({ type: 'soft', icon: '☀️', text: `<strong>${courseA.name}</strong> — Ditempatkan di pagi hari (preferensi: hindari pagi)` });
+    }
+    if (courseA.preference === 'avoid-evening' && slotA.timeIndex === state.timeSlots.length - 1) {
+      issues.push({ type: 'soft', icon: '🌙', text: `<strong>${courseA.name}</strong> — Ditempatkan di sore hari (preferensi: hindari sore)` });
+    }
+
+    for (let j = i + 1; j < entries.length; j++) {
+      const [idB, slotB] = entries[j];
+      const courseB = state.courses.find(c => c.id === idB);
+      if (!courseB) continue;
+
+      const spanA = slotA.span || 1;
+      const spanB = slotB.span || 1;
+      const sameTime = slotA.dayIndex === slotB.dayIndex &&
+        Math.max(slotA.timeIndex, slotB.timeIndex) <= Math.min(slotA.timeIndex + spanA - 1, slotB.timeIndex + spanB - 1);
+
+      if (sameTime) {
+        if (slotA.room === slotB.room) {
+          const dayName = DAYS[slotA.dayIndex];
+          const timeLabel = state.timeSlots[slotA.timeIndex]?.label || '';
+          issues.push({ type: 'hard', icon: '⚠️', text: `<strong>${courseA.name}</strong> & <strong>${courseB.name}</strong> — Ruangan sama (${slotA.room}) di ${dayName} ${timeLabel}` });
+        }
+        if (state.conflictGraph && state.conflictGraph.isConflict(idA, idB)) {
+          const dayName = DAYS[slotA.dayIndex];
+          const timeLabel = state.timeSlots[slotA.timeIndex]?.label || '';
+          const reason = state.conflictGraph.getConflictReason ? state.conflictGraph.getConflictReason(idA, idB) : '';
+          issues.push({ type: 'hard', icon: '🔗', text: `<strong>${courseA.name}</strong> & <strong>${courseB.name}</strong> — Bentrok ${reason ? '(' + reason + ')' : ''} di ${dayName} ${timeLabel}` });
+        }
+      }
+    }
+  }
+
+  const hardCount = issues.filter(i => i.type === 'hard').length;
+  const softCount = issues.filter(i => i.type === 'soft').length;
+  badge.textContent = hardCount;
+  badge.style.background = hardCount > 0 ? 'var(--danger)' : (softCount > 0 ? '#f59e0b' : 'var(--success)');
+
+  if (issues.length === 0) {
+    list.innerHTML = '<div class="conflict-ok">✅ Tidak ada konflik! Jadwal sempurna.</div>';
+  } else {
+    list.innerHTML = issues.map(i =>
+      `<div class="conflict-item ${i.type === 'soft' ? 'conflict-item-soft' : ''}">
+        <span class="conflict-icon">${i.icon}</span>
+        <span>${i.text}</span>
+      </div>`
+    ).join('');
+  }
+}
+
+// ============================================================
 // 9. GENERATE SCHEDULE (SA + Animation)
 // ============================================================
 
@@ -974,6 +1064,7 @@ async function generateSchedule() {
     document.getElementById('btn-toggle-dashboard').textContent = '▼ Tutup';
   }
   renderDashboard();
+  renderConflictCenter();
 }
 
 // ============================================================
@@ -998,6 +1089,7 @@ function resetAll() {
   renderTimeSlotList();
   renderCalendarEmpty();
   renderStats(null);
+  document.getElementById('conflict-center').style.display = 'none';
   
   // Clear localStorage
   localStorage.removeItem('scheduler-state');
@@ -1388,6 +1480,7 @@ function performDrop(courseId, dayIndex, timeIndex) {
       bestPenalty: result.penalty
     });
     renderCalendar(state.schedule);
+    renderConflictCenter();
     saveState();
     pushHistory();
   }
@@ -1757,6 +1850,7 @@ function loadVersion(index) {
   renderTimeSlotList();
   renderLegend();
   renderCalendar(state.schedule);
+  renderConflictCenter();
   renderStats({ conflicts: 0, temperature: 0, iteration: 'Loaded', bestPenalty: 0 });
   saveState();
   pushHistory();
@@ -2227,6 +2321,7 @@ function undo() {
   state.historyIndex--;
   state.schedule = JSON.parse(JSON.stringify(state.history[state.historyIndex]));
   renderCalendar(state.schedule);
+  renderConflictCenter();
   renderDashboard();
   saveState();
   updateUndoRedoButtons();
@@ -2242,6 +2337,7 @@ function redo() {
   state.historyIndex++;
   state.schedule = JSON.parse(JSON.stringify(state.history[state.historyIndex]));
   renderCalendar(state.schedule);
+  renderConflictCenter();
   renderDashboard();
   saveState();
   updateUndoRedoButtons();
@@ -2512,4 +2608,353 @@ function renderChart(canvasId, type, data, options) {
       ...options,
     }
   });
+}
+
+// ============================================================
+// CONFLICT CENTER
+// ============================================================
+
+function renderConflictCenter() {
+  const panel = document.getElementById('conflict-center');
+  const list = document.getElementById('conflict-list');
+  const badge = document.getElementById('conflict-count-badge');
+
+  if (!state.schedule || Object.keys(state.schedule).length === 0) {
+    panel.style.display = 'none';
+    return;
+  }
+
+  panel.style.display = 'block';
+  const issues = [];
+  const entries = Object.entries(state.schedule);
+
+  for (let i = 0; i < entries.length; i++) {
+    const [idA, slotA] = entries[i];
+    const courseA = state.courses.find(c => c.id === idA);
+    if (!courseA) continue;
+
+    // Check lecturer availability
+    if (!isLecturerAvailable(courseA.lecturerAvailability, slotA.dayIndex, slotA.timeIndex)) {
+      const dayName = DAYS[slotA.dayIndex];
+      const timeLabel = state.timeSlots[slotA.timeIndex]?.label || '';
+      issues.push({ type: 'hard', icon: '🚫', text: `<strong>${courseA.name}</strong> — ${courseA.lecturer} tidak tersedia di ${dayName} ${timeLabel}` });
+    }
+
+    // Check room capacity
+    const room = state.rooms.find(r => r.name === slotA.room);
+    if (room && courseA.students > room.capacity) {
+      issues.push({ type: 'hard', icon: '🏢', text: `<strong>${courseA.name}</strong> — ${courseA.students} mahasiswa di ${slotA.room} (kapasitas ${room.capacity})` });
+    }
+
+    // Check soft constraints
+    if (courseA.preference === 'avoid-morning' && slotA.timeIndex === 0) {
+      issues.push({ type: 'soft', icon: '☀️', text: `<strong>${courseA.name}</strong> — Ditempatkan di pagi hari (preferensi: hindari pagi)` });
+    }
+    if (courseA.preference === 'avoid-evening' && slotA.timeIndex === state.timeSlots.length - 1) {
+      issues.push({ type: 'soft', icon: '🌙', text: `<strong>${courseA.name}</strong> — Ditempatkan di sore hari (preferensi: hindari sore)` });
+    }
+
+    for (let j = i + 1; j < entries.length; j++) {
+      const [idB, slotB] = entries[j];
+      const courseB = state.courses.find(c => c.id === idB);
+      if (!courseB) continue;
+
+      const spanA = slotA.span || 1;
+      const spanB = slotB.span || 1;
+      const sameTime = slotA.dayIndex === slotB.dayIndex &&
+        Math.max(slotA.timeIndex, slotB.timeIndex) <= Math.min(slotA.timeIndex + spanA - 1, slotB.timeIndex + spanB - 1);
+
+      if (sameTime) {
+        if (slotA.room === slotB.room) {
+          const dayName = DAYS[slotA.dayIndex];
+          const timeLabel = state.timeSlots[slotA.timeIndex]?.label || '';
+          issues.push({ type: 'hard', icon: '⚠️', text: `<strong>${courseA.name}</strong> & <strong>${courseB.name}</strong> — Ruangan sama (${slotA.room}) di ${dayName} ${timeLabel}` });
+        }
+        if (state.conflictGraph && state.conflictGraph.isConflict(idA, idB)) {
+          const dayName = DAYS[slotA.dayIndex];
+          const timeLabel = state.timeSlots[slotA.timeIndex]?.label || '';
+          const key = [idA, idB].sort().join('|');
+          const reason = state.conflictGraph.edgeReasons ? state.conflictGraph.edgeReasons.get(key) : '';
+          issues.push({ type: 'hard', icon: '🔗', text: `<strong>${courseA.name}</strong> & <strong>${courseB.name}</strong> — Bentrok ${reason ? '(' + reason + ')' : ''} di ${dayName} ${timeLabel}` });
+        }
+      }
+    }
+  }
+
+  const hardCount = issues.filter(i => i.type === 'hard').length;
+  const softCount = issues.filter(i => i.type === 'soft').length;
+  badge.textContent = hardCount;
+  badge.style.background = hardCount > 0 ? 'var(--danger)' : (softCount > 0 ? '#f59e0b' : 'var(--success)');
+
+  if (issues.length === 0) {
+    list.innerHTML = '<div class="conflict-ok">✅ Tidak ada konflik! Jadwal sempurna.</div>';
+  } else {
+    list.innerHTML = issues.map(i =>
+      `<div class="conflict-item ${i.type === 'soft' ? 'conflict-item-soft' : ''}">
+        <span class="conflict-icon">${i.icon}</span>
+        <span>${i.text}</span>
+      </div>`
+    ).join('');
+  }
+}
+
+// ============================================================
+// HEATMAP VIEW
+// ============================================================
+
+let heatmapActive = false;
+
+function toggleHeatmap() {
+  heatmapActive = !heatmapActive;
+  const btn = document.getElementById('btn-heatmap');
+  
+  if (heatmapActive) {
+    btn.classList.remove('btn-secondary');
+    btn.classList.add('btn-primary');
+    btn.textContent = '🌡️ Heatmap ON';
+    applyHeatmap();
+  } else {
+    btn.classList.remove('btn-primary');
+    btn.classList.add('btn-secondary');
+    btn.textContent = '🌡️ Heatmap';
+    removeHeatmap();
+  }
+}
+
+function applyHeatmap() {
+  if (!state.schedule) return;
+
+  const cells = document.querySelectorAll('.calendar-cell');
+  cells.forEach(cell => {
+    const dayIndex = parseInt(cell.dataset.day);
+    const timeIndex = parseInt(cell.dataset.time);
+    if (isNaN(dayIndex) || isNaN(timeIndex)) return;
+
+    // Count courses in this cell
+    let count = 0;
+    let hasConflict = false;
+    const coursesInCell = [];
+
+    for (const [courseId, assignment] of Object.entries(state.schedule)) {
+      if (assignment.dayIndex === dayIndex && assignment.timeIndex === timeIndex) {
+        count++;
+        coursesInCell.push(courseId);
+      }
+    }
+
+    // Check for conflicts between courses in same cell
+    if (coursesInCell.length > 1) {
+      const rooms = coursesInCell.map(id => state.schedule[id].room);
+      const uniqueRooms = new Set(rooms);
+      if (uniqueRooms.size < rooms.length) hasConflict = true;
+      
+      // Check graph conflicts
+      if (state.conflictGraph) {
+        for (let i = 0; i < coursesInCell.length; i++) {
+          for (let j = i + 1; j < coursesInCell.length; j++) {
+            if (state.conflictGraph.isConflict(coursesInCell[i], coursesInCell[j])) {
+              hasConflict = true;
+            }
+          }
+        }
+      }
+    }
+
+    // Remove old heatmap classes
+    cell.classList.remove('heatmap-0', 'heatmap-1', 'heatmap-2', 'heatmap-3', 'heatmap-conflict');
+
+    if (hasConflict) {
+      cell.classList.add('heatmap-conflict');
+    } else if (count === 0) {
+      cell.classList.add('heatmap-0');
+    } else if (count === 1) {
+      cell.classList.add('heatmap-1');
+    } else if (count === 2) {
+      cell.classList.add('heatmap-2');
+    } else {
+      cell.classList.add('heatmap-3');
+    }
+  });
+
+  // Add legend
+  let legend = document.getElementById('heatmap-legend');
+  if (!legend) {
+    legend = document.createElement('div');
+    legend.id = 'heatmap-legend';
+    legend.className = 'heatmap-legend';
+    legend.innerHTML = `
+      <span style="font-weight:600;">Legenda:</span>
+      <div class="heatmap-legend-item"><div class="heatmap-legend-swatch" style="background:rgba(34,197,94,0.1)"></div> Kosong</div>
+      <div class="heatmap-legend-item"><div class="heatmap-legend-swatch" style="background:rgba(34,197,94,0.3)"></div> 1 Matkul</div>
+      <div class="heatmap-legend-item"><div class="heatmap-legend-swatch" style="background:rgba(250,204,21,0.3)"></div> 2 Matkul</div>
+      <div class="heatmap-legend-item"><div class="heatmap-legend-swatch" style="background:rgba(249,115,22,0.3)"></div> 3+ Matkul</div>
+      <div class="heatmap-legend-item"><div class="heatmap-legend-swatch" style="background:rgba(239,68,68,0.4)"></div> Bentrok!</div>
+    `;
+    document.getElementById('calendar-wrapper').appendChild(legend);
+  }
+}
+
+function removeHeatmap() {
+  const cells = document.querySelectorAll('.calendar-cell');
+  cells.forEach(cell => {
+    cell.classList.remove('heatmap-0', 'heatmap-1', 'heatmap-2', 'heatmap-3', 'heatmap-conflict');
+  });
+  const legend = document.getElementById('heatmap-legend');
+  if (legend) legend.remove();
+}
+
+// ============================================================
+// 9B. AUTO-FIX (Fix hanya matkul yang bentrok)
+// ============================================================
+
+async function autoFixConflicts() {
+  if (state.isRunning) return;
+  if (!state.schedule || Object.keys(state.schedule).length === 0) {
+    showNotification('Generate jadwal terlebih dahulu!', 'warning');
+    return;
+  }
+
+  // Find conflicting course IDs
+  const conflictingIds = new Set();
+  const entries = Object.entries(state.schedule);
+
+  for (let i = 0; i < entries.length; i++) {
+    const [idA, slotA] = entries[i];
+    const courseA = state.courses.find(c => c.id === idA);
+    if (!courseA) continue;
+
+    // Check lecturer availability
+    if (!isLecturerAvailable(courseA.lecturerAvailability, slotA.dayIndex, slotA.timeIndex)) {
+      conflictingIds.add(idA);
+    }
+
+    // Check room capacity
+    const room = state.rooms.find(r => r.name === slotA.room);
+    if (room && courseA.students > room.capacity) {
+      conflictingIds.add(idA);
+    }
+
+    for (let j = i + 1; j < entries.length; j++) {
+      const [idB, slotB] = entries[j];
+
+      const spanA = slotA.span || 1;
+      const spanB = slotB.span || 1;
+      const sameTime = slotA.dayIndex === slotB.dayIndex &&
+        Math.max(slotA.timeIndex, slotB.timeIndex) <= Math.min(slotA.timeIndex + spanA - 1, slotB.timeIndex + spanB - 1);
+
+      if (sameTime) {
+        if (slotA.room === slotB.room) {
+          conflictingIds.add(idA);
+          conflictingIds.add(idB);
+        }
+        if (state.conflictGraph && state.conflictGraph.isConflict(idA, idB)) {
+          conflictingIds.add(idA);
+          conflictingIds.add(idB);
+        }
+      }
+    }
+  }
+
+  if (conflictingIds.size === 0) {
+    showNotification('✅ Tidak ada konflik untuk diperbaiki!', 'success');
+    return;
+  }
+
+  addLog(`🔧 Auto-Fix: Memperbaiki ${conflictingIds.size} matkul yang bentrok...`, 'info');
+  pushHistory();
+
+  // Build available slots (only unlocked)
+  const activeTimeSlots = state.timeSlots.filter(ts => !ts.locked);
+  const roomNames = state.rooms.map(r => r.name);
+  const allSlots = generateAllSlots(roomNames, activeTimeSlots);
+  const roomCapacities = buildRoomCapacities();
+
+  // Keep non-conflicting assignments fixed
+  const newSchedule = { ...state.schedule };
+
+  // Try to reassign each conflicting course to a valid slot
+  for (const courseId of conflictingIds) {
+    const course = state.courses.find(c => c.id === courseId);
+    if (!course) continue;
+
+    let bestSlot = null;
+    let bestPenalty = Infinity;
+
+    for (const slot of allSlots) {
+      // Check lecturer availability
+      if (!isLecturerAvailable(course.lecturerAvailability, slot.dayIndex, slot.timeIndex)) continue;
+
+      // Check room capacity
+      if (roomCapacities && course.students) {
+        const cap = roomCapacities[slot.room];
+        if (cap !== undefined && course.students > cap) continue;
+      }
+
+      // Check for conflicts with OTHER courses already placed
+      let penalty = 0;
+      let hasHardConflict = false;
+
+      for (const [otherId, otherSlot] of Object.entries(newSchedule)) {
+        if (otherId === courseId) continue;
+
+        const spanOther = otherSlot.span || 1;
+        const sameTime = slot.dayIndex === otherSlot.dayIndex &&
+          slot.timeIndex >= otherSlot.timeIndex && slot.timeIndex < otherSlot.timeIndex + spanOther;
+
+        if (sameTime || (slot.dayIndex === otherSlot.dayIndex && otherSlot.timeIndex === slot.timeIndex)) {
+          if (slot.room === otherSlot.room) {
+            hasHardConflict = true;
+            break;
+          }
+          if (state.conflictGraph && state.conflictGraph.isConflict(courseId, otherId)) {
+            hasHardConflict = true;
+            break;
+          }
+        }
+      }
+
+      if (hasHardConflict) continue;
+
+      // Prefer slots matching preference
+      if (course.preference === 'avoid-morning' && slot.timeIndex === 0) penalty += 2;
+      if (course.preference === 'avoid-evening' && slot.timeIndex === activeTimeSlots.length - 1) penalty += 2;
+
+      if (penalty < bestPenalty) {
+        bestPenalty = penalty;
+        bestSlot = slot;
+      }
+    }
+
+    if (bestSlot) {
+      const slotsNeeded = course.sks >= 4 ? 2 : 1;
+      newSchedule[courseId] = {
+        dayIndex: bestSlot.dayIndex,
+        timeIndex: bestSlot.timeIndex,
+        room: bestSlot.room,
+        span: slotsNeeded,
+      };
+      addLog(`   ✅ ${course.name} → ${DAYS[bestSlot.dayIndex]} ${state.timeSlots[bestSlot.timeIndex]?.label || ''} (${bestSlot.room})`, 'success');
+    } else {
+      addLog(`   ⚠️ ${course.name} — tidak ditemukan slot yang valid`, 'warning');
+    }
+  }
+
+  state.schedule = newSchedule;
+  renderCalendar(state.schedule);
+  renderConflictCenter();
+  saveState();
+
+  // Recount conflicts
+  const graph = state.conflictGraph;
+  if (graph) {
+    const fitness = calculateFitness(state.schedule, graph, state.courses, state.timeSlots.length, buildRoomCapacities());
+    renderStats({ conflicts: fitness.conflicts, temperature: 0, iteration: 'Auto-Fix', bestPenalty: fitness.penalty });
+    if (fitness.conflicts === 0) {
+      showNotification('🎉 Auto-Fix berhasil! Semua konflik teratasi!', 'success');
+    } else {
+      showNotification(`🔧 Auto-Fix selesai. Sisa konflik: ${fitness.conflicts}`, 'warning');
+    }
+  }
+
+  addLog(`🔧 Auto-Fix selesai.`, 'success');
 }

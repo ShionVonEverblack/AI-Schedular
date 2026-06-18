@@ -137,6 +137,7 @@
         <div class="panel actions-panel">
           <button id="btn-preset" class="btn btn-secondary">📋 Load Preset</button>
           <button id="btn-generate" class="btn btn-primary">⚡ Generate Jadwal</button>
+          <button id="btn-autofix" class="btn btn-secondary" style="width: 100%; margin-top: 4px;">🔧 Auto-Fix Konflik</button>
           <!-- Progress Bar (hidden by default) -->
           <div class="progress-container" id="progress-container" style="display:none;">
             <div class="progress-bar" id="progress-bar"></div>
@@ -183,6 +184,7 @@
                   <option value="">— Pilih —</option>
                 </select>
               </div>
+              <button id="btn-heatmap" class="btn btn-secondary btn-sm" style="padding: 4px 10px; font-size: 0.75rem;">🌡️ Heatmap</button>
             </div>
           </div>
           <div class="calendar-legend" id="calendar-legend"></div>
@@ -223,6 +225,17 @@
               <span class="stat-value" id="stat-fitness">—</span>
               <span class="stat-label">Best Fitness</span>
             </div>
+          </div>
+        </div>
+
+        <!-- Conflict Center -->
+        <div class="conflict-center" id="conflict-center" style="display:none;">
+          <div class="conflict-header">
+            <h3>🚨 Conflict Center</h3>
+            <span class="conflict-count-badge" id="conflict-count-badge">0</span>
+          </div>
+          <div class="conflict-list" id="conflict-list">
+            <!-- Filled by JS -->
           </div>
         </div>
 
