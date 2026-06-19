@@ -59,10 +59,10 @@ const COURSE_COLORS = [
 // ============================================================
 
 const PRESET_ROOMS = [
-  { name: 'R101', capacity: 40 },
-  { name: 'R102', capacity: 35 },
-  { name: 'R103', capacity: 50 },
-  { name: 'R104', capacity: 30 },
+  { name: 'R101', capacity: 40, type: 'Kelas' },
+  { name: 'R102', capacity: 35, type: 'Lab' },
+  { name: 'R103', capacity: 50, type: 'Auditorium' },
+  { name: 'R104', capacity: 30, type: 'Kelas' },
 ];
 
 // ============================================================
@@ -71,14 +71,14 @@ const PRESET_ROOMS = [
 
 const PRESET_COURSES = [
   // Contoh Dosen A hanya bisa Senin Pagi (08:00, 10:00) dan Selasa Pagi (08:00)
-  { id: 'MK01', name: 'Struktur Data',        sks: 3, lecturer: 'Dosen A', semester: 2, preference: 'none', students: 35, lecturerAvailability: ["0-0", "0-1", "1-0"] },
-  { id: 'MK02', name: 'Teori Graf',            sks: 3, lecturer: 'Dosen B', semester: 2, preference: 'none', students: 30, lecturerAvailability: [0,1,2,3,4] },
-  { id: 'MK03', name: 'KDKA',                  sks: 3, lecturer: 'Dosen C', semester: 2, preference: 'avoid-morning', students: 40, lecturerAvailability: [0,1,2,3,4] },
+  { id: 'MK01', name: 'Struktur Data (Praktikum)', sks: 3, lecturer: 'Dosen A', semester: 2, preference: 'none', students: 35, lecturerAvailability: ["0-0", "0-1", "1-0"], type: 'Praktikum' },
+  { id: 'MK02', name: 'Teori Graf',            sks: 3, lecturer: 'Dosen B', semester: 2, preference: 'none', students: 30, lecturerAvailability: [0,1,2,3,4], type: 'Teori' },
+  { id: 'MK03', name: 'KDKA',                  sks: 3, lecturer: 'Dosen C', semester: 2, preference: 'avoid-morning', students: 40, lecturerAvailability: [0,1,2,3,4], type: 'Teori' },
   // Contoh Dosen D hanya bisa Rabu siang/sore
-  { id: 'MK04', name: 'Probstat',              sks: 3, lecturer: 'Dosen D', semester: 2, preference: 'avoid-evening', students: 45, lecturerAvailability: ["2-2", "2-3"] },
-  { id: 'MK05', name: 'Arsikom',               sks: 3, lecturer: 'Dosen E', semester: 2, preference: 'none', students: 38, lecturerAvailability: [0,1,2,3,4] },
-  { id: 'MK06', name: 'Bahasa Inggris',        sks: 2, lecturer: 'Dosen F', semester: 2, preference: 'none', students: 25, lecturerAvailability: [0,1,2,3,4] },
-  { id: 'MK07', name: 'Agama Islam',           sks: 2, lecturer: 'Dosen G', semester: 2, preference: 'none', students: 50, lecturerAvailability: [0,1,2,3,4] },
+  { id: 'MK04', name: 'Probstat',              sks: 3, lecturer: 'Dosen D', semester: 2, preference: 'avoid-evening', students: 45, lecturerAvailability: ["2-2", "2-3"], type: 'Teori' },
+  { id: 'MK05', name: 'Arsikom (Praktikum)',   sks: 3, lecturer: 'Dosen E', semester: 2, preference: 'none', students: 38, lecturerAvailability: [0,1,2,3,4], type: 'Praktikum' },
+  { id: 'MK06', name: 'Bahasa Inggris',        sks: 2, lecturer: 'Dosen F', semester: 2, preference: 'none', students: 25, lecturerAvailability: [0,1,2,3,4], type: 'Teori' },
+  { id: 'MK07', name: 'Agama Islam',           sks: 2, lecturer: 'Dosen G', semester: 2, preference: 'none', students: 50, lecturerAvailability: [0,1,2,3,4], type: 'Teori' },
 ];
 
 // ============================================================

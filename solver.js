@@ -59,11 +59,22 @@ function greedyColoring(graph, courses, slots, roomCapacities) {
         continue; // Dosen tidak tersedia
       }
 
-      // Cek kapasitas ruangan vs jumlah mahasiswa
-      if (roomCapacities && course.students) {
-        const roomCap = roomCapacities[slot.room];
-        if (roomCap !== undefined && course.students > roomCap) {
+      // Cek kapasitas ruangan vs jumlah mahasiswa dan kesesuaian tipe ruangan
+      if (roomCapacities) {
+        const roomInfo = roomCapacities[slot.room];
+        const roomCap = roomInfo ? (typeof roomInfo === 'object' ? roomInfo.capacity : roomInfo) : undefined;
+        const roomType = roomInfo && typeof roomInfo === 'object' ? roomInfo.type : 'Kelas';
+
+        if (roomCap !== undefined && course.students && course.students > roomCap) {
           continue; // Skip slot ini, ruangan terlalu kecil
+        }
+
+        const cType = course.type || 'Teori';
+        if (cType === 'Praktikum' && roomType !== 'Lab') {
+          continue; // Praktikum harus di Lab
+        }
+        if (cType === 'Teori' && roomType === 'Lab') {
+          continue; // Teori tidak boleh di Lab
         }
       }
 
@@ -192,10 +203,19 @@ function calculateFitness(schedule, graph, courses, timeSlotsCount, roomCapaciti
       }
     }
 
-    // Hard Constraint: Kapasitas ruangan
-    if (roomCapacities && course && course.students) {
-      const roomCap = roomCapacities[slot.room];
-      if (roomCap !== undefined && course.students > roomCap) {
+    // Hard Constraint: Kapasitas ruangan & Kesesuaian tipe ruangan
+    if (roomCapacities && course) {
+      const roomInfo = roomCapacities[slot.room];
+      const roomCap = roomInfo ? (typeof roomInfo === 'object' ? roomInfo.capacity : roomInfo) : undefined;
+      const roomType = roomInfo && typeof roomInfo === 'object' ? roomInfo.type : 'Kelas';
+
+      if (roomCap !== undefined && course.students && course.students > roomCap) {
+        totalPenalty += 10;
+        hardConflicts++;
+      }
+
+      const cType = course.type || 'Teori';
+      if ((cType === 'Praktikum' && roomType !== 'Lab') || (cType === 'Teori' && roomType === 'Lab')) {
         totalPenalty += 10;
         hardConflicts++;
       }
@@ -462,11 +482,20 @@ function validateDrop(courseId, dayIndex, timeIndex, schedule, courses, rooms) {
     }
   }
 
-  // 3. Cek kapasitas ruangan
+  // 3. Cek kapasitas ruangan & tipe ruangan
   if (roomName) {
     const room = rooms.find(r => r.name === roomName);
-    if (room && course.students > room.capacity) {
-      issues.push(`Kapasitas ruangan ${roomName} (${room.capacity}) < mahasiswa (${course.students})`);
+    if (room) {
+      if (course.students > room.capacity) {
+        issues.push(`Kapasitas ruangan ${roomName} (${room.capacity}) < mahasiswa (${course.students})`);
+      }
+      const roomType = room.type || 'Kelas';
+      const cType = course.type || 'Teori';
+      if (cType === 'Praktikum' && roomType !== 'Lab') {
+        issues.push(`Matkul praktikum harus ditempatkan di ruangan Lab (saat ini: ${roomType})`);
+      } else if (cType === 'Teori' && roomType === 'Lab') {
+        issues.push(`Matkul teori tidak boleh ditempatkan di ruangan Lab`);
+      }
     }
   }
 

@@ -115,6 +115,15 @@ function setupEventListeners() {
   document.getElementById('personal-filter-type').addEventListener('change', updatePersonalFilterOptions);
   document.getElementById('personal-filter-value').addEventListener('change', updatePersonalPreview);
 
+  // Batch Export & Version Compare
+  document.getElementById('btn-export-batch').addEventListener('click', exportBatchExcel);
+  document.getElementById('btn-compare-versions').addEventListener('click', openCompareModal);
+  document.getElementById('btn-close-modal-compare').addEventListener('click', closeCompareModal);
+  document.getElementById('btn-close-compare').addEventListener('click', closeCompareModal);
+  document.getElementById('compare-version-a').addEventListener('change', updateComparisonTable);
+  document.getElementById('compare-version-b').addEventListener('change', updateComparisonTable);
+  document.getElementById('compare-diff-only').addEventListener('change', updateComparisonTable);
+
   // Keyboard shortcuts
   document.addEventListener('keydown', handleKeyboardShortcut);
   
@@ -288,12 +297,14 @@ function handleAddCourse(e) {
   const sksSelect = document.getElementById('input-sks');
   const prefSelect = document.getElementById('input-preference');
   const studentsInput = document.getElementById('input-students');
+  const typeSelect = document.getElementById('input-course-type');
 
   const name = nameInput.value.trim();
   const lecturer = lecturerInput.value.trim();
   const sks = parseInt(sksSelect.value) || 3;
   const preference = prefSelect ? prefSelect.value : 'none';
   const students = parseInt(studentsInput.value) || 30;
+  const type = typeSelect ? typeSelect.value : 'Teori';
 
   // Get lecturer availability from hidden input
   const availInput = document.getElementById('input-availability').value;
@@ -318,13 +329,15 @@ function handleAddCourse(e) {
   const id = 'MK' + String(state.nextCourseId++).padStart(2, '0');
   const color = COURSE_COLORS[state.courses.length % COURSE_COLORS.length];
 
-  state.courses.push({ id, name, lecturer, sks, semester: 2, color, preference, students, lecturerAvailability });
+  state.courses.push({ id, name, lecturer, sks, semester: 2, color, preference, students, lecturerAvailability, type });
   renderCourseList();
   renderLegend();
   e.target.reset();
   
   // Reset default values
   document.getElementById('input-students').value = '30';
+  document.getElementById('input-availability').value = 'all';
+  if (typeSelect) typeSelect.value = 'Teori';
   document.getElementById('input-availability').value = 'all';
   const btnAvail = document.getElementById('btn-set-availability');
   btnAvail.textContent = 'Atur Waktu (Default: Semua)';
@@ -363,6 +376,10 @@ function startEditCourse(index) {
       <input type="text" class="edit-input" id="edit-course-lecturer-${index}" value="${course.lecturer}" placeholder="Dosen" />
       <div class="form-row" style="gap:4px; margin-top:4px;">
         <input type="number" class="edit-input" id="edit-course-students-${index}" value="${course.students || 30}" min="1" style="width:60px;" />
+        <select class="edit-input" id="edit-course-type-${index}" style="font-size:0.7rem;">
+          <option value="Teori" ${course.type === 'Teori' ? 'selected' : ''}>Teori</option>
+          <option value="Praktikum" ${course.type === 'Praktikum' ? 'selected' : ''}>Praktikum</option>
+        </select>
         <button class="btn btn-sm btn-primary" onclick="confirmEditCourse(${index})">✓</button>
         <button class="btn btn-sm btn-secondary" onclick="renderCourseList()">✕</button>
       </div>
@@ -379,6 +396,7 @@ function confirmEditCourse(index) {
   const name = document.getElementById(`edit-course-name-${index}`).value.trim();
   const lecturer = document.getElementById(`edit-course-lecturer-${index}`).value.trim();
   const students = parseInt(document.getElementById(`edit-course-students-${index}`).value) || 30;
+  const type = document.getElementById(`edit-course-type-${index}`).value;
   
   if (!name || !lecturer) {
     showNotification('Nama dan dosen tidak boleh kosong!', 'warning');
@@ -388,6 +406,7 @@ function confirmEditCourse(index) {
   state.courses[index].name = name;
   state.courses[index].lecturer = lecturer;
   state.courses[index].students = students;
+  state.courses[index].type = type;
   renderCourseList();
   renderLegend();
   saveState();
@@ -404,7 +423,8 @@ function handleAddRoom(e) {
   const roomInput = document.getElementById('input-room');
   const capacityInput = document.getElementById('input-room-capacity');
   const roomName = roomInput.value.trim().toUpperCase();
-  const capacity = parseInt(capacityInput.value) || 40;
+  const typeSelect = document.getElementById('input-room-type');
+  const roomType = typeSelect ? typeSelect.value : 'Kelas';
 
   if (!roomName) return;
   if (state.rooms.some(r => r.name === roomName)) {
@@ -412,10 +432,11 @@ function handleAddRoom(e) {
     return;
   }
 
-  state.rooms.push({ name: roomName, capacity });
+  state.rooms.push({ name: roomName, capacity, type: roomType });
   renderRoomList();
   e.target.reset();
   document.getElementById('input-room-capacity').value = '40';
+  if (typeSelect) typeSelect.value = 'Kelas';
   saveState();
   showNotification(`Ruangan "${roomName}" (${capacity} kursi) ditambahkan!`, 'success');
 }
@@ -443,6 +464,11 @@ function startEditRoom(index) {
       <div class="form-row" style="gap:4px;">
         <input type="text" class="edit-input" id="edit-room-name-${index}" value="${room.name}" />
         <input type="number" class="edit-input" id="edit-room-cap-${index}" value="${room.capacity}" min="1" style="width:60px;" />
+        <select class="edit-input" id="edit-room-type-${index}" style="font-size:0.7rem;">
+          <option value="Kelas" ${room.type === 'Kelas' ? 'selected' : ''}>Kelas</option>
+          <option value="Lab" ${room.type === 'Lab' ? 'selected' : ''}>Lab</option>
+          <option value="Auditorium" ${room.type === 'Auditorium' ? 'selected' : ''}>Auditorium</option>
+        </select>
         <button class="btn btn-sm btn-primary" onclick="confirmEditRoom(${index})">✓</button>
         <button class="btn btn-sm btn-secondary" onclick="renderRoomList()">✕</button>
       </div>
@@ -459,6 +485,8 @@ function confirmEditRoom(index) {
   const name = document.getElementById(`edit-room-name-${index}`).value.trim().toUpperCase();
   const capacity = parseInt(document.getElementById(`edit-room-cap-${index}`).value) || 40;
   
+  const type = document.getElementById(`edit-room-type-${index}`).value;
+  
   if (!name) {
     showNotification('Nama ruangan tidak boleh kosong!', 'warning');
     return;
@@ -466,6 +494,7 @@ function confirmEditRoom(index) {
   
   state.rooms[index].name = name;
   state.rooms[index].capacity = capacity;
+  state.rooms[index].type = type;
   renderRoomList();
   saveState();
   showNotification(`Ruangan berhasil diperbarui.`, 'success');
@@ -565,7 +594,7 @@ function renderCourseList() {
       <div class="course-color" style="background: ${course.color}; box-shadow: 0 0 6px ${course.color}40;"></div>
       <div class="course-info">
         <span class="course-name">${course.name}</span>
-        <span class="course-detail">${course.lecturer} · ${course.sks} SKS · ${course.students || '?'} mhs</span>
+        <span class="course-detail">${course.lecturer} · ${course.sks} SKS · ${course.students || '?'} mhs <span class="badge-type ${course.type === 'Praktikum' ? 'badge-lab' : 'badge-kelas'}">${course.type || 'Teori'}</span></span>
       </div>
       <button class="btn-icon" title="Edit" onclick="startEditCourse(${index})">✏️</button>
       <button class="btn-remove" title="Hapus">×</button>
@@ -585,7 +614,7 @@ function renderRoomList() {
     const el = document.createElement('div');
     el.className = 'room-item';
     el.innerHTML = `
-      <span>🚪 ${room.name} <small style="color:var(--text-muted);">(${room.capacity} kursi)</small></span>
+      <span>🚪 ${room.name} <span class="badge-type ${room.type === 'Lab' ? 'badge-lab' : (room.type === 'Auditorium' ? 'badge-auditorium' : 'badge-kelas')}">${room.type || 'Kelas'}</span> <small style="color:var(--text-muted);">(${room.capacity} kursi)</small></span>
       <button class="btn-icon" title="Edit" onclick="startEditRoom(${index})">✏️</button>
       <button class="btn-remove" title="Hapus">×</button>
     `;
@@ -838,10 +867,19 @@ function renderConflictCenter() {
       issues.push({ type: 'hard', icon: '🚫', text: `<strong>${courseA.name}</strong> — ${courseA.lecturer} tidak tersedia di ${dayName} ${timeLabel}` });
     }
 
-    // Check room capacity
+    // Check room capacity and type suitability
     const room = state.rooms.find(r => r.name === slotA.room);
-    if (room && courseA.students > room.capacity) {
-      issues.push({ type: 'hard', icon: '🏢', text: `<strong>${courseA.name}</strong> — ${courseA.students} mahasiswa di ${slotA.room} (kapasitas ${room.capacity})` });
+    if (room) {
+      if (courseA.students > room.capacity) {
+        issues.push({ type: 'hard', icon: '🏢', text: `<strong>${courseA.name}</strong> — ${courseA.students} mahasiswa di ${slotA.room} (kapasitas ${room.capacity})` });
+      }
+      const roomType = room.type || 'Kelas';
+      const cType = courseA.type || 'Teori';
+      if (cType === 'Praktikum' && roomType !== 'Lab') {
+        issues.push({ type: 'hard', icon: '🧪', text: `<strong>${courseA.name}</strong> (Praktikum) — Ditempatkan di ruangan <strong>${slotA.room}</strong> berjenis <strong>${roomType}</strong> (Harus di ruangan Lab)` });
+      } else if (cType === 'Teori' && roomType === 'Lab') {
+        issues.push({ type: 'hard', icon: '🧪', text: `<strong>${courseA.name}</strong> (Teori) — Ditempatkan di ruangan <strong>${slotA.room}</strong> berjenis <strong>${roomType}</strong> (Tidak boleh di ruangan Lab)` });
+      }
     }
 
     // Check soft constraints
@@ -902,7 +940,10 @@ function renderConflictCenter() {
 function buildRoomCapacities() {
   const caps = {};
   for (const room of state.rooms) {
-    caps[room.name] = room.capacity;
+    caps[room.name] = {
+      capacity: room.capacity,
+      type: room.type || 'Kelas'
+    };
   }
   return caps;
 }
@@ -1232,10 +1273,12 @@ function parseAndImportCSV(text) {
       const students = parseInt(studentsStr) || 30;
       const id = 'MK' + String(state.nextCourseId++).padStart(2, '0');
       const color = COURSE_COLORS[state.courses.length % COURSE_COLORS.length];
+      const isLab = name.toLowerCase().includes('praktikum') || name.toLowerCase().includes('lab') || name.toLowerCase().includes('pr.');
+      const type = isLab ? 'Praktikum' : 'Teori';
 
       // Avoid duplicate course names
       if (!state.courses.some(c => c.name.toLowerCase() === name.trim().toLowerCase())) {
-        state.courses.push({ id, name: name.trim(), lecturer: lecturer.trim(), sks, semester: 2, color, preference: 'none', students });
+        state.courses.push({ id, name: name.trim(), lecturer: lecturer.trim(), sks, semester: 2, color, preference: 'none', students, type });
         importedCourses++;
       }
 
@@ -1244,7 +1287,9 @@ function parseAndImportCSV(text) {
         const rName = roomName.trim().toUpperCase();
         if (!state.rooms.some(r => r.name === rName)) {
           const capacity = parseInt(capacityStr) || 40;
-          state.rooms.push({ name: rName, capacity });
+          const isLabRoom = rName.toLowerCase().includes('lab') || rName.toLowerCase().includes('l.');
+          const rType = isLabRoom ? 'Lab' : 'Kelas';
+          state.rooms.push({ name: rName, capacity, type: rType });
           importedRooms.add(rName);
         }
       }
@@ -1257,9 +1302,11 @@ function parseAndImportCSV(text) {
       const students = parseInt(studentsStr) || 30;
       const id = 'MK' + String(state.nextCourseId++).padStart(2, '0');
       const color = COURSE_COLORS[state.courses.length % COURSE_COLORS.length];
+      const isLab = name.toLowerCase().includes('praktikum') || name.toLowerCase().includes('lab') || name.toLowerCase().includes('pr.');
+      const type = isLab ? 'Praktikum' : 'Teori';
 
       if (!state.courses.some(c => c.name.toLowerCase() === name.trim().toLowerCase())) {
-        state.courses.push({ id, name: name.trim(), lecturer: lecturer.trim(), sks, semester: 2, color, preference: 'none', students });
+        state.courses.push({ id, name: name.trim(), lecturer: lecturer.trim(), sks, semester: 2, color, preference: 'none', students, type });
         importedCourses++;
       }
     }
@@ -2640,10 +2687,19 @@ function renderConflictCenter() {
       issues.push({ type: 'hard', icon: '🚫', text: `<strong>${courseA.name}</strong> — ${courseA.lecturer} tidak tersedia di ${dayName} ${timeLabel}` });
     }
 
-    // Check room capacity
+    // Check room capacity and type suitability
     const room = state.rooms.find(r => r.name === slotA.room);
-    if (room && courseA.students > room.capacity) {
-      issues.push({ type: 'hard', icon: '🏢', text: `<strong>${courseA.name}</strong> — ${courseA.students} mahasiswa di ${slotA.room} (kapasitas ${room.capacity})` });
+    if (room) {
+      if (courseA.students > room.capacity) {
+        issues.push({ type: 'hard', icon: '🏢', text: `<strong>${courseA.name}</strong> — ${courseA.students} mahasiswa di ${slotA.room} (kapasitas ${room.capacity})` });
+      }
+      const roomType = room.type || 'Kelas';
+      const cType = courseA.type || 'Teori';
+      if (cType === 'Praktikum' && roomType !== 'Lab') {
+        issues.push({ type: 'hard', icon: '🧪', text: `<strong>${courseA.name}</strong> (Praktikum) — Ditempatkan di ruangan <strong>${slotA.room}</strong> berjenis <strong>${roomType}</strong> (Harus di ruangan Lab)` });
+      } else if (cType === 'Teori' && roomType === 'Lab') {
+        issues.push({ type: 'hard', icon: '🧪', text: `<strong>${courseA.name}</strong> (Teori) — Ditempatkan di ruangan <strong>${slotA.room}</strong> berjenis <strong>${roomType}</strong> (Tidak boleh di ruangan Lab)` });
+      }
     }
 
     // Check soft constraints
@@ -2828,10 +2884,17 @@ async function autoFixConflicts() {
       conflictingIds.add(idA);
     }
 
-    // Check room capacity
+    // Check room capacity & type suitability
     const room = state.rooms.find(r => r.name === slotA.room);
-    if (room && courseA.students > room.capacity) {
-      conflictingIds.add(idA);
+    if (room) {
+      if (courseA.students > room.capacity) {
+        conflictingIds.add(idA);
+      }
+      const roomType = room.type || 'Kelas';
+      const cType = courseA.type || 'Teori';
+      if ((cType === 'Praktikum' && roomType !== 'Lab') || (cType === 'Teori' && roomType === 'Lab')) {
+        conflictingIds.add(idA);
+      }
     }
 
     for (let j = i + 1; j < entries.length; j++) {
@@ -2884,10 +2947,18 @@ async function autoFixConflicts() {
       // Check lecturer availability
       if (!isLecturerAvailable(course.lecturerAvailability, slot.dayIndex, slot.timeIndex)) continue;
 
-      // Check room capacity
-      if (roomCapacities && course.students) {
-        const cap = roomCapacities[slot.room];
-        if (cap !== undefined && course.students > cap) continue;
+      // Check room capacity & type suitability
+      if (roomCapacities) {
+        const roomInfo = roomCapacities[slot.room];
+        if (roomInfo) {
+          const cap = typeof roomInfo === 'object' ? roomInfo.capacity : roomInfo;
+          const roomType = typeof roomInfo === 'object' ? roomInfo.type : 'Kelas';
+          if (course.students && cap !== undefined && course.students > cap) continue;
+          
+          const cType = course.type || 'Teori';
+          if (cType === 'Praktikum' && roomType !== 'Lab') continue;
+          if (cType === 'Teori' && roomType === 'Lab') continue;
+        }
       }
 
       // Check for conflicts with OTHER courses already placed
@@ -2957,4 +3028,435 @@ async function autoFixConflicts() {
   }
 
   addLog(`🔧 Auto-Fix selesai.`, 'success');
+}
+
+// ============================================================
+// 18B. BATCH EXPORT EXCEL (SheetJS Multi-sheet)
+// ============================================================
+
+function exportBatchExcel() {
+  if (!state.schedule || state.courses.length === 0) {
+    showNotification('Generate jadwal terlebih dahulu!', 'warning');
+    return;
+  }
+
+  if (typeof XLSX === 'undefined') {
+    showNotification('Library SheetJS belum dimuat. Coba refresh halaman.', 'error');
+    return;
+  }
+
+  const wb = XLSX.utils.book_new();
+
+  // 1. Sheet Semua Jadwal
+  const mainData = [['Hari', 'Waktu', 'Mata Kuliah', 'Dosen', 'SKS', 'Jml Mahasiswa', 'Ruangan', 'Kapasitas', 'Tipe Ruangan', 'Tipe Matkul', 'Semester']];
+  const entries = Object.entries(state.schedule).sort((a, b) => {
+    if (a[1].dayIndex !== b[1].dayIndex) return a[1].dayIndex - b[1].dayIndex;
+    return a[1].timeIndex - b[1].timeIndex;
+  });
+
+  for (const [courseId, slot] of entries) {
+    const course = state.courses.find(c => c.id === courseId);
+    if (!course) continue;
+    const timeLabel = state.timeSlots[slot.timeIndex]?.label || '';
+    const room = state.rooms.find(r => r.name === slot.room);
+    mainData.push([
+      DAYS[slot.dayIndex],
+      timeLabel,
+      course.name,
+      course.lecturer,
+      course.sks,
+      course.students || '',
+      slot.room,
+      room ? room.capacity : '',
+      room ? (room.type || 'Kelas') : '',
+      course.type || 'Teori',
+      course.semester || ''
+    ]);
+  }
+
+  const wsMain = XLSX.utils.aoa_to_sheet(mainData);
+  wsMain['!cols'] = [
+    { wch: 10 }, { wch: 16 }, { wch: 22 }, { wch: 14 },
+    { wch: 6 }, { wch: 14 }, { wch: 10 }, { wch: 10 }, { wch: 12 }, { wch: 12 }, { wch: 10 }
+  ];
+  XLSX.utils.book_append_sheet(wb, wsMain, 'Semua Jadwal');
+
+  // Helper to sanitize sheet names (Excel has a 31 char limit and prohibits some symbols)
+  function getSafeSheetName(name) {
+    return name.replace(/[\\\/\?\*\:\[\]]/g, '').slice(0, 31);
+  }
+
+  // 2. Sheets by Lecturer (Dosen)
+  const lecturers = [...new Set(state.courses.map(c => c.lecturer))].sort();
+  lecturers.forEach(lec => {
+    const lecData = [['Hari', 'Waktu', 'Mata Kuliah', 'SKS', 'Jml Mahasiswa', 'Ruangan', 'Kapasitas', 'Tipe Ruangan', 'Tipe Matkul']];
+    let count = 0;
+
+    for (const [courseId, slot] of entries) {
+      const course = state.courses.find(c => c.id === courseId);
+      if (course && course.lecturer === lec) {
+        const timeLabel = state.timeSlots[slot.timeIndex]?.label || '';
+        const room = state.rooms.find(r => r.name === slot.room);
+        lecData.push([
+          DAYS[slot.dayIndex],
+          timeLabel,
+          course.name,
+          course.sks,
+          course.students || '',
+          slot.room,
+          room ? room.capacity : '',
+          room ? (room.type || 'Kelas') : '',
+          course.type || 'Teori'
+        ]);
+        count++;
+      }
+    }
+
+    if (count > 0) {
+      const wsLec = XLSX.utils.aoa_to_sheet(lecData);
+      wsLec['!cols'] = [
+        { wch: 10 }, { wch: 16 }, { wch: 22 }, { wch: 6 },
+        { wch: 14 }, { wch: 10 }, { wch: 10 }, { wch: 12 }, { wch: 12 }
+      ];
+      const sheetTitle = getSafeSheetName(`Dosen - ${lec}`);
+      XLSX.utils.book_append_sheet(wb, wsLec, sheetTitle);
+    }
+  });
+
+  // 3. Sheets by Class / Semester
+  const semesters = [...new Set(state.courses.map(c => c.semester))].sort();
+  const classSet = new Set();
+  state.courses.forEach(c => {
+    const match = c.name.match(/\s([A-Z])$/i);
+    if (match) classSet.add(match[1].toUpperCase());
+  });
+
+  if (classSet.size > 0) {
+    const classes = [...classSet].sort();
+    semesters.forEach(sem => {
+      classes.forEach(cls => {
+        const classData = [['Hari', 'Waktu', 'Mata Kuliah', 'Dosen', 'SKS', 'Jml Mahasiswa', 'Ruangan', 'Kapasitas', 'Tipe Ruangan', 'Tipe Matkul']];
+        let count = 0;
+
+        for (const [courseId, slot] of entries) {
+          const course = state.courses.find(c => c.id === courseId);
+          if (course && course.semester === sem) {
+            const match = course.name.match(/\s([A-Z])$/i);
+            const courseClass = match ? match[1].toUpperCase() : '';
+            if (courseClass === cls) {
+              const timeLabel = state.timeSlots[slot.timeIndex]?.label || '';
+              const room = state.rooms.find(r => r.name === slot.room);
+              classData.push([
+                DAYS[slot.dayIndex],
+                timeLabel,
+                course.name,
+                course.lecturer,
+                course.sks,
+                course.students || '',
+                slot.room,
+                room ? room.capacity : '',
+                room ? (room.type || 'Kelas') : '',
+                course.type || 'Teori'
+              ]);
+              count++;
+            }
+          }
+        }
+
+        if (count > 0) {
+          const wsClass = XLSX.utils.aoa_to_sheet(classData);
+          wsClass['!cols'] = [
+            { wch: 10 }, { wch: 16 }, { wch: 22 }, { wch: 14 },
+            { wch: 6 }, { wch: 14 }, { wch: 10 }, { wch: 10 }, { wch: 12 }, { wch: 12 }
+          ];
+          const sheetTitle = getSafeSheetName(`Sem ${sem} - ${cls}`);
+          XLSX.utils.book_append_sheet(wb, wsClass, sheetTitle);
+        }
+      });
+
+      // Handing courses without a suffix class letter
+      const remainingData = [['Hari', 'Waktu', 'Mata Kuliah', 'Dosen', 'SKS', 'Jml Mahasiswa', 'Ruangan', 'Kapasitas', 'Tipe Ruangan', 'Tipe Matkul']];
+      let remainingCount = 0;
+
+      for (const [courseId, slot] of entries) {
+        const course = state.courses.find(c => c.id === courseId);
+        if (course && course.semester === sem) {
+          const match = course.name.match(/\s([A-Z])$/i);
+          if (!match) {
+            const timeLabel = state.timeSlots[slot.timeIndex]?.label || '';
+            const room = state.rooms.find(r => r.name === slot.room);
+            remainingData.push([
+              DAYS[slot.dayIndex],
+              timeLabel,
+              course.name,
+              course.lecturer,
+              course.sks,
+              course.students || '',
+              slot.room,
+              room ? room.capacity : '',
+              room ? (room.type || 'Kelas') : '',
+              course.type || 'Teori'
+            ]);
+            remainingCount++;
+          }
+        }
+      }
+
+      if (remainingCount > 0) {
+        const wsClass = XLSX.utils.aoa_to_sheet(remainingData);
+        wsClass['!cols'] = [
+          { wch: 10 }, { wch: 16 }, { wch: 22 }, { wch: 14 },
+          { wch: 6 }, { wch: 14 }, { wch: 10 }, { wch: 10 }, { wch: 12 }, { wch: 12 }
+        ];
+        const sheetTitle = getSafeSheetName(`Semester ${sem}`);
+        XLSX.utils.book_append_sheet(wb, wsClass, sheetTitle);
+      }
+    });
+  } else {
+    // If no classes parallel exist, group by semester only
+    semesters.forEach(sem => {
+      const semData = [['Hari', 'Waktu', 'Mata Kuliah', 'Dosen', 'SKS', 'Jml Mahasiswa', 'Ruangan', 'Kapasitas', 'Tipe Ruangan', 'Tipe Matkul']];
+      let count = 0;
+
+      for (const [courseId, slot] of entries) {
+        const course = state.courses.find(c => c.id === courseId);
+        if (course && course.semester === sem) {
+          const timeLabel = state.timeSlots[slot.timeIndex]?.label || '';
+          const room = state.rooms.find(r => r.name === slot.room);
+          semData.push([
+            DAYS[slot.dayIndex],
+            timeLabel,
+            course.name,
+            course.lecturer,
+            course.sks,
+            course.students || '',
+            slot.room,
+            room ? room.capacity : '',
+            room ? (room.type || 'Kelas') : '',
+            course.type || 'Teori'
+          ]);
+          count++;
+        }
+      }
+
+      if (count > 0) {
+        const wsClass = XLSX.utils.aoa_to_sheet(semData);
+        wsClass['!cols'] = [
+          { wch: 10 }, { wch: 16 }, { wch: 22 }, { wch: 14 },
+          { wch: 6 }, { wch: 14 }, { wch: 10 }, { wch: 10 }, { wch: 12 }, { wch: 12 }
+        ];
+        const sheetTitle = getSafeSheetName(`Semester ${sem}`);
+        XLSX.utils.book_append_sheet(wb, wsClass, sheetTitle);
+      }
+    });
+  }
+
+  XLSX.writeFile(wb, 'jadwal_kuliah_batch.xlsx');
+  showNotification('📊 Batch Export berhasil! File jadwal_kuliah_batch.xlsx terunduh.', 'success');
+  addLog('📊 Batch export: jadwal_kuliah_batch.xlsx', 'success');
+}
+
+// ============================================================
+// 20. VERSION COMPARISON (Diff View)
+// ============================================================
+
+function openCompareModal() {
+  const modal = document.getElementById('modal-version-compare');
+  const selectA = document.getElementById('compare-version-a');
+  const selectB = document.getElementById('compare-version-b');
+
+  if (!state.schedule && state.versions.length === 0) {
+    showNotification('Belum ada jadwal aktif atau versi tersimpan untuk dibandingkan!', 'warning');
+    return;
+  }
+
+  // Populate options
+  let optionsHtml = '';
+  if (state.schedule) {
+    optionsHtml += '<option value="active">Jadwal Aktif saat ini</option>';
+  }
+  state.versions.forEach((ver, index) => {
+    optionsHtml += `<option value="version_${index}">${ver.name} (${ver.date})</option>`;
+  });
+
+  selectA.innerHTML = optionsHtml;
+  selectB.innerHTML = optionsHtml;
+
+  // Set default values
+  if (state.schedule && state.versions.length > 0) {
+    selectA.value = 'active';
+    selectB.value = 'version_' + (state.versions.length - 1);
+  } else if (state.versions.length >= 2) {
+    selectA.value = 'version_0';
+    selectB.value = 'version_1';
+  }
+
+  modal.style.display = 'flex';
+  updateComparisonTable();
+}
+
+function closeCompareModal() {
+  document.getElementById('modal-version-compare').style.display = 'none';
+}
+
+function updateComparisonTable() {
+  const selectA = document.getElementById('compare-version-a').value;
+  const selectB = document.getElementById('compare-version-b').value;
+  const diffOnly = document.getElementById('compare-diff-only').checked;
+  const container = document.getElementById('compare-table-container');
+  const summaryEl = document.getElementById('compare-summary');
+
+  if (!selectA || !selectB) {
+    container.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--text-muted);">Pilih dua versi untuk dibandingkan.</div>';
+    return;
+  }
+
+  // Resolve Version A
+  let scheduleA = {};
+  let coursesA = [];
+  let timeSlotsA = [];
+  if (selectA === 'active') {
+    scheduleA = state.schedule || {};
+    coursesA = state.courses;
+    timeSlotsA = state.timeSlots;
+  } else {
+    const idx = parseInt(selectA.replace('version_', ''));
+    if (state.versions[idx]) {
+      scheduleA = state.versions[idx].schedule;
+      coursesA = state.versions[idx].courses;
+      timeSlotsA = state.versions[idx].timeSlots;
+    }
+  }
+
+  // Resolve Version B
+  let scheduleB = {};
+  let coursesB = [];
+  let timeSlotsB = [];
+  if (selectB === 'active') {
+    scheduleB = state.schedule || {};
+    coursesB = state.courses;
+    timeSlotsB = state.timeSlots;
+  } else {
+    const idx = parseInt(selectB.replace('version_', ''));
+    if (state.versions[idx]) {
+      scheduleB = state.versions[idx].schedule;
+      coursesB = state.versions[idx].courses;
+      timeSlotsB = state.versions[idx].timeSlots;
+    }
+  }
+
+  // Find all unique course IDs across both versions
+  const allCourseIds = new Set([
+    ...Object.keys(scheduleA),
+    ...Object.keys(scheduleB)
+  ]);
+
+  let rowsHtml = '';
+  let countDisplayed = 0;
+  let countChanged = 0;
+
+  // Build table headers
+  let tableHeader = `<table class="compare-table">
+    <thead>
+      <tr>
+        <th>Mata Kuliah & Dosen</th>
+        <th>Slot Versi A</th>
+        <th>Slot Versi B</th>
+        <th>Status</th>
+      </tr>
+    </thead>
+    <tbody>`;
+
+  allCourseIds.forEach(courseId => {
+    // Find course details (fallback to either list)
+    const courseA = coursesA.find(c => c.id === courseId);
+    const courseB = coursesB.find(c => c.id === courseId);
+    const courseName = (courseB ? courseB.name : (courseA ? courseA.name : courseId));
+    const lecturer = (courseB ? courseB.lecturer : (courseA ? courseA.lecturer : ''));
+
+    const slotA = scheduleA[courseId];
+    const slotB = scheduleB[courseId];
+
+    let labelA = 'Tidak dijadwalkan';
+    let labelB = 'Tidak dijadwalkan';
+    let statusText = 'Identik';
+    let statusClass = 'compare-badge-same';
+    let rowClass = 'compare-row-same';
+    let isDifferent = false;
+
+    if (slotA) {
+      const day = DAYS[slotA.dayIndex] || '';
+      const time = timeSlotsA[slotA.timeIndex]?.label || '';
+      labelA = `${day} ${time} (${slotA.room})`;
+    }
+    if (slotB) {
+      const day = DAYS[slotB.dayIndex] || '';
+      const time = timeSlotsB[slotB.timeIndex]?.label || '';
+      labelB = `${day} ${time} (${slotB.room})`;
+    }
+
+    if (!slotA && slotB) {
+      statusText = 'Ditambahkan';
+      statusClass = 'compare-badge-changed';
+      rowClass = 'compare-row-changed';
+      isDifferent = true;
+      countChanged++;
+    } else if (slotA && !slotB) {
+      statusText = 'Dihapus';
+      statusClass = 'compare-badge-missing';
+      rowClass = 'compare-row-changed';
+      isDifferent = true;
+      countChanged++;
+    } else if (slotA && slotB) {
+      const sameTime = slotA.dayIndex === slotB.dayIndex && slotA.timeIndex === slotB.timeIndex;
+      const sameRoom = slotA.room === slotB.room;
+
+      if (!sameTime && sameRoom) {
+        statusText = 'Waktu Berubah';
+        statusClass = 'compare-badge-changed';
+        rowClass = 'compare-row-changed';
+        isDifferent = true;
+        countChanged++;
+      } else if (sameTime && !sameRoom) {
+        statusText = 'Ruangan Berubah';
+        statusClass = 'compare-badge-changed';
+        rowClass = 'compare-row-changed';
+        isDifferent = true;
+        countChanged++;
+      } else if (!sameTime && !sameRoom) {
+        statusText = 'Slot & Ruang Berubah';
+        statusClass = 'compare-badge-changed';
+        rowClass = 'compare-row-changed';
+        isDifferent = true;
+        countChanged++;
+      }
+    }
+
+    if (diffOnly && !isDifferent) {
+      return; // Skip identical rows if filter is checked
+    }
+
+    countDisplayed++;
+    rowsHtml += `<tr class="${rowClass}">
+      <td>
+        <strong style="color: var(--text-primary);">${courseName}</strong><br/>
+        <small style="color: var(--text-muted);">${lecturer}</small>
+      </td>
+      <td style="color: ${slotA ? 'var(--text-primary)' : 'var(--text-muted)'};">${labelA}</td>
+      <td style="color: ${slotB ? 'var(--text-primary)' : 'var(--text-muted)'};">${labelB}</td>
+      <td>
+        <span class="compare-badge ${statusClass}">${statusText}</span>
+      </td>
+    </tr>`;
+  });
+
+  if (countDisplayed === 0) {
+    container.innerHTML = `<div style="padding: 30px; text-align: center; color: var(--text-muted);">
+      ${diffOnly ? 'Tidak ada perbedaan antara kedua versi ini.' : 'Tidak ada data jadwal untuk dibandingkan.'}
+    </div>`;
+  } else {
+    container.innerHTML = tableHeader + rowsHtml + '</tbody></table>';
+  }
+
+  summaryEl.textContent = `Menampilkan ${countDisplayed} dari ${allCourseIds.size} matkul (${countChanged} berbeda)`;
 }

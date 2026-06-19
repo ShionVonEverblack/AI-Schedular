@@ -77,6 +77,12 @@
                 <option value="avoid-evening">Hindari Sore</option>
               </select>
             </div>
+            <div class="form-row" style="margin-top: 4px;">
+              <select id="input-course-type" style="width: 100%;">
+                <option value="Teori">Teori</option>
+                <option value="Praktikum">Praktikum</option>
+              </select>
+            </div>
             <!-- Ketersediaan Dosen -->
             <div class="availability-row" style="display: flex; flex-direction: column; gap: 8px;">
               <span class="availability-label">📆 Waktu Mengajar:</span>
@@ -98,7 +104,14 @@
             <div class="form-row">
               <input type="text" id="input-room" placeholder="Kode Ruangan" required />
               <input type="number" id="input-room-capacity" placeholder="Kapasitas" min="1" value="40" required />
-              <button type="submit" class="btn btn-add btn-sm">+ Tambah</button>
+            </div>
+            <div class="form-row" style="margin-top: 4px;">
+              <select id="input-room-type" style="flex: 1;">
+                <option value="Kelas">Kelas</option>
+                <option value="Lab">Lab</option>
+                <option value="Auditorium">Auditorium</option>
+              </select>
+              <button type="submit" class="btn btn-add btn-sm" style="flex: 0 0 auto;">+ Tambah</button>
             </div>
           </form>
         </div>
@@ -131,6 +144,7 @@
             <input type="text" id="input-version-name" placeholder="Nama versi..." style="flex:1; padding:5px 8px; border-radius:6px; border:1px solid var(--border); background:var(--bg-surface); color:var(--text-primary); font-size:0.7rem; font-family:inherit;" />
             <button id="btn-save-version" class="btn btn-add btn-sm" style="white-space:nowrap;">💾 Simpan</button>
           </div>
+          <button id="btn-compare-versions" class="btn btn-secondary btn-sm" style="width: 100%; margin-top: 6px;">🔍 Bandingkan Versi</button>
         </div>
 
         <!-- Panel: Aksi -->
@@ -149,6 +163,7 @@
           </div>
           <div class="form-row" style="gap: 6px;">
             <button id="btn-export-excel" class="btn btn-secondary" style="flex:1;">📊 Excel</button>
+            <button id="btn-export-batch" class="btn btn-secondary" style="flex:1;" title="Ekspor multi-sheet untuk Dosen dan Kelas">📊 Batch Excel</button>
             <button id="btn-export-pdf" class="btn btn-secondary" style="flex:1;">📄 PDF</button>
           </div>
           <div class="form-row" style="gap: 6px;">
@@ -399,6 +414,49 @@
       <div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px;">
         <button type="button" id="btn-cancel-personal" class="btn btn-secondary btn-sm">Batal</button>
         <button type="button" id="btn-do-personal-export" class="btn btn-primary btn-sm">📥 Ekspor</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Perbandingan Versi (Diff View) -->
+  <div id="modal-version-compare" class="modal-overlay" style="display: none;">
+    <div class="modal-content" style="max-width: 800px; width: 95%;">
+      <div class="modal-header">
+        <h3>🔍 Perbandingan Versi (Diff View)</h3>
+        <button type="button" id="btn-close-modal-compare" class="btn-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 16px;">Bandingkan dua versi jadwal secara berdampingan untuk melihat perbedaan slot waktu dan ruangan.</p>
+        
+        <div style="display: flex; gap: 12px; margin-bottom: 16px;">
+          <div style="flex: 1; display: flex; flex-direction: column; gap: 4px;">
+            <label style="font-size: 0.75rem; font-weight: 600; color: var(--text-secondary);">Versi A (Basis):</label>
+            <select id="compare-version-a" class="filter-select" style="width: 100%; padding: 8px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-surface); color: var(--text-primary); font-family: inherit;">
+              <!-- Diisi dinamis -->
+            </select>
+          </div>
+          <div style="flex: 1; display: flex; flex-direction: column; gap: 4px;">
+            <label style="font-size: 0.75rem; font-weight: 600; color: var(--text-secondary);">Versi B (Pembanding):</label>
+            <select id="compare-version-b" class="filter-select" style="width: 100%; padding: 8px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-surface); color: var(--text-primary); font-family: inherit;">
+              <!-- Diisi dinamis -->
+            </select>
+          </div>
+        </div>
+        
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+          <label style="display: flex; align-items: center; gap: 6px; font-size: 0.8rem; cursor: pointer; color: var(--text-secondary);">
+            <input type="checkbox" id="compare-diff-only" style="cursor: pointer;" />
+            Tampilkan perbedaan saja
+          </label>
+          <span style="font-size: 0.75rem; color: var(--text-secondary);" id="compare-summary">Menampilkan 0 dari 0 matkul</span>
+        </div>
+
+        <div id="compare-table-container" style="max-height: 350px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px;">
+          <!-- Table compare akan dirender dinamis -->
+        </div>
+      </div>
+      <div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px;">
+        <button type="button" id="btn-close-compare" class="btn btn-secondary btn-sm">Tutup</button>
       </div>
     </div>
   </div>
