@@ -33,6 +33,9 @@
         <div class="shortcut-hints">
           <span class="shortcut-badge" title="Ctrl+Z Undo, Ctrl+Y Redo, Ctrl+S Save, Ctrl+G Generate, Ctrl+E Export">⌨️ Shortcuts</span>
         </div>
+        <button id="btn-lang-toggle" class="btn btn-secondary" title="Ganti Bahasa / Switch Language">
+          🌐 ID
+        </button>
         <button id="btn-theme-toggle" class="btn btn-secondary" title="Ganti Mode Terang/Gelap">
           <span id="theme-icon">🌓</span> Mode
         </button>
@@ -82,6 +85,10 @@
                 <option value="Teori">Teori</option>
                 <option value="Praktikum">Praktikum</option>
               </select>
+            </div>
+            <div class="form-row" style="margin-top: 4px; display: flex; align-items: center; gap: 8px;">
+              <label for="input-course-color" style="font-size: 0.7rem; color: var(--text-secondary); white-space: nowrap; font-family: inherit;">🎨 Warna Kartu:</label>
+              <input type="color" id="input-course-color" value="#6366f1" style="flex: 1; height: 26px; border: 1px solid var(--border); border-radius: 6px; background: transparent; cursor: pointer; padding: 0;" />
             </div>
             <!-- Ketersediaan Dosen -->
             <div class="availability-row" style="display: flex; flex-direction: column; gap: 8px;">
@@ -239,6 +246,13 @@
             <div class="stat-info">
               <span class="stat-value" id="stat-fitness">—</span>
               <span class="stat-label">Best Fitness</span>
+            </div>
+          </div>
+          <div class="stat-card">
+            <span class="stat-icon">📈</span>
+            <div class="stat-info">
+              <span class="stat-value" id="stat-score">—</span>
+              <span class="stat-label">Skor Kualitas</span>
             </div>
           </div>
         </div>
@@ -410,8 +424,19 @@
         <div id="personal-preview" style="margin-top: 16px; max-height: 250px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; display: none;">
           <!-- Table preview akan dirender dinamis -->
         </div>
+
+        <!-- QR Code Section (hidden by default) -->
+        <div id="personal-qr-section" style="margin-top: 16px; display: none; flex-direction: column; align-items: center; gap: 10px; padding: 12px; border: 1px dashed var(--border); border-radius: 8px; background: var(--bg-surface);">
+          <canvas id="personal-qr-canvas" style="background: white; padding: 10px; border-radius: 8px;"></canvas>
+          <span style="font-size: 0.7rem; color: var(--text-muted); text-align: center;">Scan QR ini untuk melihat jadwal personal via HP, atau salin tautan di bawah.</span>
+          <div style="display: flex; gap: 4px; width: 100%;">
+            <input type="text" id="personal-share-url" readonly style="flex: 1; padding: 6px; font-size: 0.7rem; border-radius: 6px; border: 1px solid var(--border); background: var(--bg-primary); color: var(--text-muted); font-family: inherit;" />
+            <button id="btn-copy-share-url" class="btn btn-primary btn-sm" style="padding: 6px 12px; font-size: 0.7rem; white-space: nowrap;">Salin</button>
+          </div>
+        </div>
       </div>
       <div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px;">
+        <button type="button" id="btn-show-qr" class="btn btn-secondary btn-sm">📱 QR Code</button>
         <button type="button" id="btn-cancel-personal" class="btn btn-secondary btn-sm">Batal</button>
         <button type="button" id="btn-do-personal-export" class="btn btn-primary btn-sm">📥 Ekspor</button>
       </div>
@@ -464,6 +489,7 @@
   <!-- CDN Libraries -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>

@@ -24,6 +24,7 @@ const state = {
   dragCourseId: null, // Currently dragged course for validation
   history: [],       // Undo/Redo stack
   historyIndex: -1,  // Current position in history
+  lang: 'id',
 };
 
 // ============================================================
@@ -33,6 +34,16 @@ const state = {
 document.addEventListener('DOMContentLoaded', init);
 
 function init() {
+  // Try to load saved language first
+  state.lang = localStorage.getItem('scheduler-lang') || 'id';
+
+  // Check for shared personal schedule view
+  const urlParams = new URLSearchParams(window.location.search);
+  if (urlParams.get('view') === 'personal' && urlParams.get('data')) {
+    showSharedPersonalSchedule(urlParams.get('data'));
+    return;
+  }
+
   // Try to load saved state from localStorage
   const loaded = loadState();
   
@@ -42,8 +53,10 @@ function init() {
   }
 
   setupEventListeners();
+  applyLanguage();
   
   if (loaded && state.courses.length > 0) {
+    rebuildConflictGraph();
     renderCourseList();
     renderRoomList();
     renderTimeSlotList();
@@ -52,7 +65,16 @@ function init() {
     if (state.schedule) {
       renderCalendar(state.schedule);
       renderConflictCenter();
-      renderStats({ conflicts: 0, temperature: 0, iteration: 'Saved', bestPenalty: 0 });
+      
+      const maxTimeIndex = state.timeSlots.length;
+      const roomCapacities = buildRoomCapacities();
+      const result = calculateFitness(state.schedule, state.conflictGraph, state.courses, maxTimeIndex, roomCapacities);
+      renderStats({
+        conflicts: result.conflicts,
+        temperature: 0,
+        iteration: 'Saved',
+        bestPenalty: result.penalty
+      });
     } else {
       renderCalendarEmpty();
       renderStats(null);
@@ -85,6 +107,7 @@ function setupEventListeners() {
   document.getElementById('btn-export-excel').addEventListener('click', exportExcel);
   document.getElementById('btn-export-pdf').addEventListener('click', exportPDF);
   document.getElementById('btn-reset').addEventListener('click', resetAll);
+  document.getElementById('btn-lang-toggle').addEventListener('click', toggleLanguage);
   document.getElementById('btn-print').addEventListener('click', () => window.print());
   document.getElementById('btn-theme-toggle').addEventListener('click', toggleTheme);
   document.getElementById('btn-import-csv').addEventListener('click', () => document.getElementById('csv-file-input').click());
@@ -114,6 +137,8 @@ function setupEventListeners() {
   document.getElementById('btn-do-personal-export').addEventListener('click', doPersonalExport);
   document.getElementById('personal-filter-type').addEventListener('change', updatePersonalFilterOptions);
   document.getElementById('personal-filter-value').addEventListener('change', updatePersonalPreview);
+  document.getElementById('btn-show-qr').addEventListener('click', showPersonalQR);
+  document.getElementById('btn-copy-share-url').addEventListener('click', copyShareUrl);
 
   // Batch Export & Version Compare
   document.getElementById('btn-export-batch').addEventListener('click', exportBatchExcel);
@@ -327,7 +352,8 @@ function handleAddCourse(e) {
   if (!name || !lecturer) return;
 
   const id = 'MK' + String(state.nextCourseId++).padStart(2, '0');
-  const color = COURSE_COLORS[state.courses.length % COURSE_COLORS.length];
+  const colorInput = document.getElementById('input-course-color');
+  const color = colorInput ? colorInput.value : COURSE_COLORS[state.courses.length % COURSE_COLORS.length];
 
   state.courses.push({ id, name, lecturer, sks, semester: 2, color, preference, students, lecturerAvailability, type });
   renderCourseList();
@@ -338,7 +364,7 @@ function handleAddCourse(e) {
   document.getElementById('input-students').value = '30';
   document.getElementById('input-availability').value = 'all';
   if (typeSelect) typeSelect.value = 'Teori';
-  document.getElementById('input-availability').value = 'all';
+  if (colorInput) colorInput.value = '#6366f1';
   const btnAvail = document.getElementById('btn-set-availability');
   btnAvail.textContent = 'Atur Waktu (Default: Semua)';
   btnAvail.classList.remove('btn-primary');
@@ -350,10 +376,6 @@ function handleAddCourse(e) {
 function removeCourse(index) {
   const name = state.courses[index].name;
   state.courses.splice(index, 1);
-  // Reassign colors
-  state.courses.forEach((c, i) => {
-    c.color = COURSE_COLORS[i % COURSE_COLORS.length];
-  });
   renderCourseList();
   renderLegend();
   saveState();
@@ -374,12 +396,13 @@ function startEditCourse(index) {
     <div class="edit-inline">
       <input type="text" class="edit-input" id="edit-course-name-${index}" value="${course.name}" />
       <input type="text" class="edit-input" id="edit-course-lecturer-${index}" value="${course.lecturer}" placeholder="Dosen" />
-      <div class="form-row" style="gap:4px; margin-top:4px;">
-        <input type="number" class="edit-input" id="edit-course-students-${index}" value="${course.students || 30}" min="1" style="width:60px;" />
-        <select class="edit-input" id="edit-course-type-${index}" style="font-size:0.7rem;">
+      <div class="form-row" style="gap:4px; margin-top:4px; align-items: center;">
+        <input type="number" class="edit-input" id="edit-course-students-${index}" value="${course.students || 30}" min="1" style="width:50px;" />
+        <select class="edit-input" id="edit-course-type-${index}" style="font-size:0.7rem; flex: 1;">
           <option value="Teori" ${course.type === 'Teori' ? 'selected' : ''}>Teori</option>
           <option value="Praktikum" ${course.type === 'Praktikum' ? 'selected' : ''}>Praktikum</option>
         </select>
+        <input type="color" id="edit-course-color-${index}" value="${course.color || '#6366f1'}" style="width:24px; height:24px; border:1px solid var(--border); border-radius:4px; background:transparent; cursor:pointer; padding:0;" title="Ganti warna" />
         <button class="btn btn-sm btn-primary" onclick="confirmEditCourse(${index})">✓</button>
         <button class="btn btn-sm btn-secondary" onclick="renderCourseList()">✕</button>
       </div>
@@ -397,6 +420,7 @@ function confirmEditCourse(index) {
   const lecturer = document.getElementById(`edit-course-lecturer-${index}`).value.trim();
   const students = parseInt(document.getElementById(`edit-course-students-${index}`).value) || 30;
   const type = document.getElementById(`edit-course-type-${index}`).value;
+  const color = document.getElementById(`edit-course-color-${index}`).value;
   
   if (!name || !lecturer) {
     showNotification('Nama dan dosen tidak boleh kosong!', 'warning');
@@ -407,6 +431,7 @@ function confirmEditCourse(index) {
   state.courses[index].lecturer = lecturer;
   state.courses[index].students = students;
   state.courses[index].type = type;
+  state.courses[index].color = color;
   renderCourseList();
   renderLegend();
   saveState();
@@ -586,18 +611,22 @@ function toggleTimeslotLock(index) {
 function renderCourseList() {
   const container = document.getElementById('course-list');
   container.innerHTML = '';
+  const isEn = state.lang === 'en';
 
   state.courses.forEach((course, index) => {
     const el = document.createElement('div');
     el.className = 'course-item';
+    const sksLabel = isEn ? 'Credits' : 'SKS';
+    const studentsLabel = isEn ? 'students' : 'mhs';
+    const typeLabel = course.type === 'Praktikum' ? (isEn ? 'Practical' : 'Praktikum') : (isEn ? 'Theory' : 'Teori');
     el.innerHTML = `
       <div class="course-color" style="background: ${course.color}; box-shadow: 0 0 6px ${course.color}40;"></div>
       <div class="course-info">
         <span class="course-name">${course.name}</span>
-        <span class="course-detail">${course.lecturer} · ${course.sks} SKS · ${course.students || '?'} mhs <span class="badge-type ${course.type === 'Praktikum' ? 'badge-lab' : 'badge-kelas'}">${course.type || 'Teori'}</span></span>
+        <span class="course-detail">${course.lecturer} · ${course.sks} ${sksLabel} · ${course.students || '?'} ${studentsLabel} <span class="badge-type ${course.type === 'Praktikum' ? 'badge-lab' : 'badge-kelas'}">${typeLabel}</span></span>
       </div>
       <button class="btn-icon" title="Edit" onclick="startEditCourse(${index})">✏️</button>
-      <button class="btn-remove" title="Hapus">×</button>
+      <button class="btn-remove" title="${isEn ? 'Delete' : 'Hapus'}">×</button>
     `;
     el.querySelector('.btn-remove').addEventListener('click', () => removeCourse(index));
     container.appendChild(el);
@@ -609,14 +638,17 @@ function renderCourseList() {
 function renderRoomList() {
   const container = document.getElementById('room-list');
   container.innerHTML = '';
+  const isEn = state.lang === 'en';
 
   state.rooms.forEach((room, index) => {
     const el = document.createElement('div');
     el.className = 'room-item';
+    const typeLabel = room.type === 'Lab' ? 'Lab' : (room.type === 'Auditorium' ? 'Auditorium' : (isEn ? 'Class' : 'Kelas'));
+    const capacityLabel = isEn ? 'seats' : 'kursi';
     el.innerHTML = `
-      <span>🚪 ${room.name} <span class="badge-type ${room.type === 'Lab' ? 'badge-lab' : (room.type === 'Auditorium' ? 'badge-auditorium' : 'badge-kelas')}">${room.type || 'Kelas'}</span> <small style="color:var(--text-muted);">(${room.capacity} kursi)</small></span>
+      <span>🚪 ${room.name} <span class="badge-type ${room.type === 'Lab' ? 'badge-lab' : (room.type === 'Auditorium' ? 'badge-auditorium' : 'badge-kelas')}">${typeLabel}</span> <small style="color:var(--text-muted);">(${room.capacity} ${capacityLabel})</small></span>
       <button class="btn-icon" title="Edit" onclick="startEditRoom(${index})">✏️</button>
-      <button class="btn-remove" title="Hapus">×</button>
+      <button class="btn-remove" title="${isEn ? 'Delete' : 'Hapus'}">×</button>
     `;
     el.querySelector('.btn-remove').addEventListener('click', () => removeRoom(index));
     container.appendChild(el);
@@ -628,14 +660,16 @@ function renderRoomList() {
 function renderTimeSlotList() {
   const container = document.getElementById('timeslot-list');
   container.innerHTML = '';
+  const isEn = state.lang === 'en';
 
   state.timeSlots.forEach((slot, index) => {
     const el = document.createElement('div');
     el.className = 'timeslot-item' + (slot.locked ? ' timeslot-locked' : '');
+    const lockTitle = slot.locked ? (isEn ? 'Unlock' : 'Buka Kunci') : (isEn ? 'Lock (Break)' : 'Kunci (Istirahat)');
     el.innerHTML = `
       <span>${slot.locked ? '🔒' : '⏰'} ${slot.label}</span>
-      <button class="btn-icon btn-lock" title="${slot.locked ? 'Buka Kunci' : 'Kunci (Istirahat)'}" onclick="toggleTimeslotLock(${index})">${slot.locked ? '🔓' : '🔒'}</button>
-      <button class="btn-remove" title="Hapus">×</button>
+      <button class="btn-icon btn-lock" title="${lockTitle}" onclick="toggleTimeslotLock(${index})">${slot.locked ? '🔓' : '🔒'}</button>
+      <button class="btn-remove" title="${isEn ? 'Delete' : 'Hapus'}">×</button>
     `;
     el.querySelector('.btn-remove').addEventListener('click', () => removeTimeSlot(index));
     container.appendChild(el);
@@ -673,10 +707,10 @@ function renderCalendar(schedule) {
   corner.className = 'calendar-corner';
   grid.appendChild(corner);
 
-  DAYS.forEach((day) => {
+  DAYS.forEach((day, index) => {
     const dayHeader = document.createElement('div');
     dayHeader.className = 'calendar-day-header';
-    dayHeader.textContent = day;
+    dayHeader.textContent = getDayName(index, state.lang === 'en');
     grid.appendChild(dayHeader);
   });
 
@@ -736,12 +770,13 @@ function renderCalendar(schedule) {
             const availWarning = !isLecturerAvailable(course.lecturerAvailability, dayIndex, timeIndex);
 
             // Multi-slot badge
+            const isEn = state.lang === 'en';
             const slotsNeeded = course.sks >= 4 ? 2 : 1;
-            const multiSlotBadge = slotsNeeded > 1 ? '<span class="multi-slot-badge">2 Slot</span>' : '';
+            const multiSlotBadge = slotsNeeded > 1 ? `<span class="multi-slot-badge">${isEn ? '2 Slots' : '2 Slot'}</span>` : '';
 
             card.innerHTML = `
               <span class="card-name" style="color: ${course.color}">${course.name}${multiSlotBadge}</span>
-              <span class="card-detail">${course.lecturer} · ${course.students || '?'} mhs · Sem ${course.semester || '?'}</span>
+              <span class="card-detail">${course.lecturer} · ${course.students || '?'} ${isEn ? 'students' : 'mhs'} · Sem ${course.semester || '?'}</span>
               <span class="card-room">${capacityWarning || availWarning ? '⚠️' : '📍'} ${assignment.room}${room ? ` (${room.capacity})` : ''}</span>
             `;
             if (slotsNeeded > 1) card.classList.add('multi-slot');
@@ -810,12 +845,14 @@ function renderStats(data) {
   const elIter = document.getElementById('stat-iter');
   const elFitness = document.getElementById('stat-fitness');
   const elTempBar = document.getElementById('temp-bar');
+  const elScore = document.getElementById('stat-score');
 
   if (!data) {
     elConflicts.textContent = '—';
     elTemp.textContent = '—';
     elIter.textContent = '—';
     elFitness.textContent = '—';
+    if (elScore) elScore.textContent = '—';
     elTempBar.style.width = '100%';
     return;
   }
@@ -835,64 +872,82 @@ function renderStats(data) {
   } else {
     elConflicts.style.color = 'var(--danger)';
   }
+
+  // Calculate and render quality score
+  const scheduleToCalculate = data.schedule || state.schedule;
+  const score = calculateScheduleScore(scheduleToCalculate);
+  if (elScore) {
+    elScore.textContent = score + '%';
+    if (score >= 90) {
+      elScore.style.color = 'var(--success)';
+    } else if (score >= 60) {
+      elScore.style.color = 'var(--warning)';
+    } else {
+      elScore.style.color = 'var(--danger)';
+    }
+  }
 }
 
 // ============================================================
-// 8B. CONFLICT CENTER
+// 8B. SCORING & LANGUAGE HELPERS
 // ============================================================
 
-function renderConflictCenter() {
-  const panel = document.getElementById('conflict-center');
-  const list = document.getElementById('conflict-list');
-  const badge = document.getElementById('conflict-count-badge');
-
-  if (!state.schedule || Object.keys(state.schedule).length === 0) {
-    panel.style.display = 'none';
-    return;
+function rebuildConflictGraph() {
+  if (state.courses && state.courses.length > 0) {
+    const constraints = buildConstraints(state.courses);
+    state.conflictGraph = ConflictGraph.fromConstraints(state.courses, constraints);
+  } else {
+    state.conflictGraph = null;
   }
+}
 
-  panel.style.display = 'block';
-  const issues = [];
-  const entries = Object.entries(state.schedule);
+function calculateScheduleScore(schedule) {
+  if (!schedule || Object.keys(schedule).length === 0) return 0;
+  
+  let hardCount = 0;
+  let softCount = 0;
+  const entries = Object.entries(schedule);
+  const courses = state.courses;
+  const rooms = state.rooms;
+  const timeSlots = state.timeSlots;
+  const graph = state.conflictGraph;
 
   for (let i = 0; i < entries.length; i++) {
     const [idA, slotA] = entries[i];
-    const courseA = state.courses.find(c => c.id === idA);
+    const courseA = courses.find(c => c.id === idA);
     if (!courseA) continue;
 
     // Check lecturer availability
     if (!isLecturerAvailable(courseA.lecturerAvailability, slotA.dayIndex, slotA.timeIndex)) {
-      const dayName = DAYS[slotA.dayIndex];
-      const timeLabel = state.timeSlots[slotA.timeIndex]?.label || '';
-      issues.push({ type: 'hard', icon: '🚫', text: `<strong>${courseA.name}</strong> — ${courseA.lecturer} tidak tersedia di ${dayName} ${timeLabel}` });
+      hardCount++;
     }
 
     // Check room capacity and type suitability
-    const room = state.rooms.find(r => r.name === slotA.room);
+    const room = rooms.find(r => r.name === slotA.room);
     if (room) {
       if (courseA.students > room.capacity) {
-        issues.push({ type: 'hard', icon: '🏢', text: `<strong>${courseA.name}</strong> — ${courseA.students} mahasiswa di ${slotA.room} (kapasitas ${room.capacity})` });
+        hardCount++;
       }
       const roomType = room.type || 'Kelas';
       const cType = courseA.type || 'Teori';
       if (cType === 'Praktikum' && roomType !== 'Lab') {
-        issues.push({ type: 'hard', icon: '🧪', text: `<strong>${courseA.name}</strong> (Praktikum) — Ditempatkan di ruangan <strong>${slotA.room}</strong> berjenis <strong>${roomType}</strong> (Harus di ruangan Lab)` });
+        hardCount++;
       } else if (cType === 'Teori' && roomType === 'Lab') {
-        issues.push({ type: 'hard', icon: '🧪', text: `<strong>${courseA.name}</strong> (Teori) — Ditempatkan di ruangan <strong>${slotA.room}</strong> berjenis <strong>${roomType}</strong> (Tidak boleh di ruangan Lab)` });
+        hardCount++;
       }
     }
 
     // Check soft constraints
     if (courseA.preference === 'avoid-morning' && slotA.timeIndex === 0) {
-      issues.push({ type: 'soft', icon: '☀️', text: `<strong>${courseA.name}</strong> — Ditempatkan di pagi hari (preferensi: hindari pagi)` });
+      softCount++;
     }
-    if (courseA.preference === 'avoid-evening' && slotA.timeIndex === state.timeSlots.length - 1) {
-      issues.push({ type: 'soft', icon: '🌙', text: `<strong>${courseA.name}</strong> — Ditempatkan di sore hari (preferensi: hindari sore)` });
+    if (courseA.preference === 'avoid-evening' && slotA.timeIndex === timeSlots.length - 1) {
+      softCount++;
     }
 
     for (let j = i + 1; j < entries.length; j++) {
       const [idB, slotB] = entries[j];
-      const courseB = state.courses.find(c => c.id === idB);
+      const courseB = courses.find(c => c.id === idB);
       if (!courseB) continue;
 
       const spanA = slotA.span || 1;
@@ -902,36 +957,458 @@ function renderConflictCenter() {
 
       if (sameTime) {
         if (slotA.room === slotB.room) {
-          const dayName = DAYS[slotA.dayIndex];
-          const timeLabel = state.timeSlots[slotA.timeIndex]?.label || '';
-          issues.push({ type: 'hard', icon: '⚠️', text: `<strong>${courseA.name}</strong> & <strong>${courseB.name}</strong> — Ruangan sama (${slotA.room}) di ${dayName} ${timeLabel}` });
+          hardCount++;
         }
-        if (state.conflictGraph && state.conflictGraph.isConflict(idA, idB)) {
-          const dayName = DAYS[slotA.dayIndex];
-          const timeLabel = state.timeSlots[slotA.timeIndex]?.label || '';
-          const reason = state.conflictGraph.getConflictReason ? state.conflictGraph.getConflictReason(idA, idB) : '';
-          issues.push({ type: 'hard', icon: '🔗', text: `<strong>${courseA.name}</strong> & <strong>${courseB.name}</strong> — Bentrok ${reason ? '(' + reason + ')' : ''} di ${dayName} ${timeLabel}` });
+        if (graph && graph.isConflict(idA, idB)) {
+          hardCount++;
         }
       }
     }
   }
 
-  const hardCount = issues.filter(i => i.type === 'hard').length;
-  const softCount = issues.filter(i => i.type === 'soft').length;
-  badge.textContent = hardCount;
-  badge.style.background = hardCount > 0 ? 'var(--danger)' : (softCount > 0 ? '#f59e0b' : 'var(--success)');
+  // Weekly imbalance penalty
+  const counts = Array(DAYS.length).fill(0);
+  for (const slot of Object.values(schedule)) {
+    if (slot.dayIndex >= 0 && slot.dayIndex < DAYS.length) {
+      counts[slot.dayIndex]++;
+    }
+  }
+  const totalCourses = Object.keys(schedule).length;
+  let imbalancePenalty = 0;
+  if (totalCourses > 0) {
+    const target = totalCourses / DAYS.length;
+    let sumDiff = 0;
+    for (let c of counts) {
+      sumDiff += Math.abs(c - target);
+    }
+    imbalancePenalty = sumDiff * 1.5;
+  }
 
-  if (issues.length === 0) {
-    list.innerHTML = '<div class="conflict-ok">✅ Tidak ada konflik! Jadwal sempurna.</div>';
-  } else {
-    list.innerHTML = issues.map(i =>
-      `<div class="conflict-item ${i.type === 'soft' ? 'conflict-item-soft' : ''}">
-        <span class="conflict-icon">${i.icon}</span>
-        <span>${i.text}</span>
-      </div>`
-    ).join('');
+  // Room utilization penalty
+  let totalUtil = 0;
+  let countUtil = 0;
+  for (const [courseId, slot] of Object.entries(schedule)) {
+    const course = courses.find(c => c.id === courseId);
+    const room = rooms.find(r => r.name === slot.room);
+    if (course && room && room.capacity > 0) {
+      totalUtil += course.students / room.capacity;
+      countUtil++;
+    }
+  }
+  const avgUtil = countUtil > 0 ? (totalUtil / countUtil) : 1.0;
+  const utilPenalty = Math.max(0, (0.7 - avgUtil) * 15);
+
+  const score = Math.round(Math.max(0, Math.min(100, 100 - (hardCount * 15) - (softCount * 3) - imbalancePenalty - utilPenalty)));
+  return score;
+}
+
+function getDayName(dayIndex, isEn) {
+  const DAYS_EN = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+  const DAYS_ID = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat'];
+  return isEn ? (DAYS_EN[dayIndex] || '') : (DAYS_ID[dayIndex] || '');
+}
+
+function translateReason(reason, isEn) {
+  if (!reason) return '';
+  if (!isEn) return reason;
+  let translated = reason;
+  translated = translated.replace(/Dosen sama/g, 'Same lecturer');
+  translated = translated.replace(/Semester sama/g, 'Same semester');
+  translated = translated.replace(/Kelas/g, 'Class');
+  return translated;
+}
+
+function translateMessage(msg) {
+  if (!msg) return msg;
+  
+  // Translate day names
+  const daysID = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat'];
+  const daysEN = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+  for (let i = 0; i < daysID.length; i++) {
+    const regex = new RegExp('\\b' + daysID[i] + '\\b', 'g');
+    msg = msg.replace(regex, daysEN[i]);
+  }
+
+  const translations = [
+    { pattern: /Data preset Semester 2 berhasil dimuat!/i, replacement: 'Semester 2 preset data loaded successfully!' },
+    { pattern: /"(.+?)" ditambahkan!/i, replacement: '"$1" added!' },
+    { pattern: /"(.+?)" dihapus/i, replacement: '"$1" deleted' },
+    { pattern: /Nama dan dosen tidak boleh kosong!/i, replacement: 'Name and lecturer cannot be empty!' },
+    { pattern: /Mata kuliah berhasil diperbarui\./i, replacement: 'Course successfully updated.' },
+    { pattern: /Ruangan "(.+?)" sudah ada!/i, replacement: 'Room "$1" already exists!' },
+    { pattern: /Ruangan "(.+?)" \((.+?)\) ditambahkan!/i, replacement: 'Room "$1" ($2) added!' },
+    { pattern: /Ruangan "(.+?)" dihapus/i, replacement: 'Room "$1" deleted' },
+    { pattern: /Nama ruangan tidak boleh kosong!/i, replacement: 'Room name cannot be empty!' },
+    { pattern: /Ruangan berhasil diperbarui\./i, replacement: 'Room successfully updated.' },
+    { pattern: /Jam mulai harus lebih awal dari jam selesai!/i, replacement: 'Start time must be earlier than end time!' },
+    { pattern: /Jam kuliah "(.+?)" sudah ada!/i, replacement: 'Time slot "$1" already exists!' },
+    { pattern: /Jam kuliah "(.+?)" ditambahkan!/i, replacement: 'Time slot "$1" added!' },
+    { pattern: /Jam kuliah "(.+?)" dihapus/i, replacement: 'Time slot "$1" deleted' },
+    { pattern: /🔒 "(.+?)" dikunci \(istirahat\)/i, replacement: '🔒 "$1" locked (break)' },
+    { pattern: /🔓 "(.+?)" dibuka kembali/i, replacement: '🔓 "$1" unlocked' },
+    { pattern: /Tambahkan mata kuliah terlebih dahulu!/i, replacement: 'Please add courses first!' },
+    { pattern: /Tambahkan ruangan terlebih dahulu!/i, replacement: 'Please add rooms first!' },
+    { pattern: /Tambahkan jam kuliah terlebih dahulu!/i, replacement: 'Please add time slots first!' },
+    { pattern: /Semua jam kuliah dikunci! Buka setidaknya satu\./i, replacement: 'All time slots are locked! Unlock at least one.' },
+    { pattern: /🎉 Jadwal berhasil dibuat tanpa konflik!/i, replacement: '🎉 Schedule successfully generated without conflicts!' },
+    { pattern: /Semua data direset/i, replacement: 'All data reset' },
+    { pattern: /📥 Jadwal berhasil diekspor ke CSV!/i, replacement: '📥 Schedule successfully exported to CSV!' },
+    { pattern: /📥 Daftar mata kuliah berhasil diekspor ke CSV!/i, replacement: '📥 Course list successfully exported to CSV!' },
+    { pattern: /Generate jadwal terlebih dahulu!/i, replacement: 'Please generate a schedule first!' },
+    { pattern: /📸 Memproses screenshot\.\.\./i, replacement: '📸 Processing screenshot...' },
+    { pattern: /📸 Jadwal berhasil diekspor ke PNG!/i, replacement: '📸 Schedule successfully exported to PNG!' },
+    { pattern: /Gagal export PNG: (.+?)/i, replacement: 'Failed to export PNG: $1' },
+    { pattern: /Gagal membaca file CSV: (.+?)/i, replacement: 'Failed to read CSV file: $1' },
+    { pattern: /File CSV kosong atau tidak valid!/i, replacement: 'CSV file empty or invalid!' },
+    { pattern: /Gagal: Jam ini dikunci sebagai waktu istirahat!/i, replacement: 'Failed: This time slot is locked as a break!' },
+    { pattern: /Gagal: Ruangan (.+?) sudah terpakai di waktu ini!/i, replacement: 'Failed: Room $1 is already occupied at this time!' },
+    { pattern: /Modifikasi menghasilkan jadwal bentrok!/i, replacement: 'Modification results in a conflicting schedule!' },
+    { pattern: /Jadwal berhasil digeser\./i, replacement: 'Schedule successfully moved.' },
+    { pattern: /Generate jadwal terlebih dahulu sebelum menyimpan versi!/i, replacement: 'Please generate a schedule before saving versions!' },
+    { pattern: /💾 Versi "(.+?)" berhasil disimpan!/i, replacement: '💾 Version "$1" successfully saved!' },
+    { pattern: /📂 Versi "(.+?)" berhasil dimuat!/i, replacement: '📂 Version "$1" successfully loaded!' },
+    { pattern: /🗑️ Versi "(.+?)" dihapus\./i, replacement: '🗑️ Version "$1" deleted.' },
+    { pattern: /Library SheetJS belum dimuat\. Coba refresh halaman\./i, replacement: 'SheetJS library not loaded. Try refreshing the page.' },
+    { pattern: /📊 Jadwal berhasil diekspor ke Excel!/i, replacement: '📊 Schedule successfully exported to Excel!' },
+    { pattern: /Library jsPDF belum dimuat\. Coba refresh halaman\./i, replacement: 'jsPDF library not loaded. Try refreshing the page.' },
+    { pattern: /📄 Jadwal berhasil diekspor ke PDF!/i, replacement: '📄 Schedule successfully exported to PDF!' },
+    { pattern: /Pilih dosen atau kelas terlebih dahulu!/i, replacement: 'Please select a lecturer or class first!' },
+    { pattern: /Tampilkan QR Code/i, replacement: 'Show QR Code' },
+    { pattern: /📋 Link berhasil disalin ke clipboard!/i, replacement: '📋 Link copied to clipboard!' },
+    { pattern: /Gagal menyalin link\./i, replacement: 'Failed to copy link.' },
+    { pattern: /Gagal membuat QR Code\./i, replacement: 'Failed to generate QR Code.' },
+    { pattern: /Tidak ada yang bisa di-undo\./i, replacement: 'Nothing to undo.' },
+    { pattern: /Tidak ada yang bisa di-redo\./i, replacement: 'Nothing to redo.' },
+    { pattern: /↩️ Undo berhasil\./i, replacement: '↩️ Undo successful.' },
+    { pattern: /↪️ Redo berhasil\./i, replacement: '↪️ Redo successful.' },
+    { pattern: /✅ Tidak ada konflik untuk diperbaiki!/i, replacement: '✅ No conflicts to fix!' },
+    { pattern: /🔧 Auto-Fix: Memperbaiki (.+?) matkul yang bentrok\.\.\./i, replacement: '🔧 Auto-Fix: Fixing $1 conflicting courses...' },
+    { pattern: /🎉 Auto-Fix berhasil! Semua konflik teratasi!/i, replacement: '🎉 Auto-Fix successful! All conflicts resolved!' },
+    { pattern: /🔧 Auto-Fix selesai\. Sisa konflik: (.+?)/i, replacement: '🔧 Auto-Fix finished. Remaining conflicts: $1' },
+    { pattern: /🔧 Auto-Fix selesai\./i, replacement: '🔧 Auto-Fix finished.' },
+    { pattern: /🔨 Membangun graf konflik \(adjacency list\)\.\.\./i, replacement: '🔨 Building conflict graph (adjacency list)...' },
+    { pattern: /📊 Graf konflik: (.+?) node \(matkul\), (.+?) edge \(konflik\)/i, replacement: '📊 Conflict graph: $1 nodes (courses), $2 edges (conflicts)' },
+    { pattern: /   ↳ (.+?) ⟷ (.+?) \((.+?)\)/i, replacement: (match, p1, p2, p3) => `   ↳ ${p1} ⟷ ${p2} (${translateReason(p3, true)})` },
+    { pattern: /   ↳ \.\.\. dan (.+?) edge lainnya/i, replacement: '   ↳ ... and $1 other edges' },
+    { pattern: /📦 Total slot tersedia: (.+?)/i, replacement: '📦 Total slots available: $1' },
+    { pattern: /   ✅ (.+?) → (.+?) (.+?) \((.+?)\)/i, replacement: '   ✅ $1 → $2 $3 ($4)' },
+    { pattern: /   ⚠️ (.+?) — tidak ditemukan slot yang valid/i, replacement: '   ⚠️ $1 — no valid slot found' },
+    { pattern: /📂 Data sebelumnya berhasil dimuat dari penyimpanan lokal\./i, replacement: '📂 Previous data loaded from local storage.' },
+    { pattern: /Aplikasi siap\. Klik "Load Preset" atau tambahkan data manual\./i, replacement: 'Application ready. Click "Load Preset" or add data manually.' },
+    { pattern: /↩️ Undo jadwal\./i, replacement: '↩️ Undo schedule.' },
+    { pattern: /↪️ Redo jadwal\./i, replacement: '↪️ Redo schedule.' },
+    { pattern: /⚠️ Swap dibatalkan: Ruangan (.+?) penuh pada Hari (.+?) Waktu (.+?)\./i, replacement: '⚠️ Swap cancelled: Room $1 full on Day $2 Time $3.' },
+    { pattern: /⚠️ Swap manual: Terdapat (.+?) konflik\./i, replacement: '⚠️ Manual swap: $1 conflicts exist.' },
+    { pattern: /✨ Swap manual sukses tanpa konflik\./i, replacement: '✨ Manual swap successful without conflicts.' },
+    { pattern: /💾 Versi disimpan: (.+?)/i, replacement: '💾 Version saved: $1' },
+    { pattern: /📂 Memuat versi: (.+?)/i, replacement: '📂 Loading version: $1' },
+  ];
+
+  for (const trans of translations) {
+    if (trans.pattern.test(msg)) {
+      return msg.replace(trans.pattern, trans.replacement);
+    }
+  }
+  return msg;
+}
+
+function toggleLanguage() {
+  state.lang = state.lang === 'id' ? 'en' : 'id';
+  localStorage.setItem('scheduler-lang', state.lang);
+  applyLanguage();
+  showNotification(state.lang === 'en' ? 'Language changed to English' : 'Bahasa diubah ke Bahasa Indonesia', 'info');
+}
+
+function applyLanguage() {
+  const isEn = state.lang === 'en';
+  
+  // Toggle button text
+  const btnToggle = document.getElementById('btn-lang-toggle');
+  if (btnToggle) {
+    btnToggle.textContent = isEn ? '🌐 EN' : '🌐 ID';
+  }
+
+  // Header Subtitle
+  const subtitle = document.querySelector('.header-subtitle');
+  if (subtitle) subtitle.textContent = isEn ? 'Automated Course Scheduling' : 'Penjadwalan Kuliah Otomatis';
+
+  // Search box placeholder
+  const searchInput = document.getElementById('sidebar-search');
+  if (searchInput) searchInput.placeholder = isEn ? '🔍 Search courses, lecturers, rooms...' : '🔍 Cari matkul, dosen, ruangan...';
+
+  // Panel headers
+  const courseHeader = document.querySelector('#course-list').parentNode.querySelector('.panel-header h3');
+  if (courseHeader) courseHeader.textContent = isEn ? '📚 Courses' : '📚 Mata Kuliah';
+  
+  const roomHeader = document.querySelector('#room-list').parentNode.querySelector('.panel-header h3');
+  if (roomHeader) roomHeader.textContent = isEn ? '🏢 Rooms' : '🏢 Ruangan';
+  
+  const timeslotHeader = document.querySelector('#timeslot-list').parentNode.querySelector('.panel-header h3');
+  if (timeslotHeader) timeslotHeader.textContent = isEn ? '⏰ Time Slots' : '⏰ Jam Kuliah';
+  
+  const versionHeader = document.querySelector('#version-list').parentNode.querySelector('.panel-header h3');
+  if (versionHeader) versionHeader.textContent = isEn ? '📂 Schedule Versions' : '📂 Versi Jadwal';
+
+  // Course Form placeholders & preference options
+  const courseNameInput = document.getElementById('input-course-name');
+  if (courseNameInput) courseNameInput.placeholder = isEn ? 'Course Name' : 'Nama Mata Kuliah';
+  
+  const lecturerInput = document.getElementById('input-lecturer');
+  if (lecturerInput) lecturerInput.placeholder = isEn ? 'Lecturer' : 'Dosen';
+  
+  const studentsInput = document.getElementById('input-students');
+  if (studentsInput) studentsInput.placeholder = isEn ? 'Student Count' : 'Jml Mahasiswa';
+
+  const prefNone = document.querySelector('#input-preference option[value="none"]');
+  if (prefNone) prefNone.textContent = isEn ? 'No Preference' : 'Tanpa Preferensi';
+  
+  const prefMorning = document.querySelector('#input-preference option[value="avoid-morning"]');
+  if (prefMorning) prefMorning.textContent = isEn ? 'Avoid Morning' : 'Hindari Pagi';
+  
+  const prefEvening = document.querySelector('#input-preference option[value="avoid-evening"]');
+  if (prefEvening) prefEvening.textContent = isEn ? 'Avoid Evening' : 'Hindari Sore';
+
+  const typeTeori = document.querySelector('#input-course-type option[value="Teori"]');
+  if (typeTeori) typeTeori.textContent = isEn ? 'Theory' : 'Teori';
+  
+  const typePraktikum = document.querySelector('#input-course-type option[value="Praktikum"]');
+  if (typePraktikum) typePraktikum.textContent = isEn ? 'Practical' : 'Praktikum';
+
+  const labelColor = document.querySelector('label[for="input-course-color"]');
+  if (labelColor) labelColor.textContent = isEn ? '🎨 Card Color:' : '🎨 Warna Kartu:';
+
+  const labelAvail = document.querySelector('.availability-label');
+  if (labelAvail) labelAvail.textContent = isEn ? '📆 Teaching Availability:' : '📆 Waktu Mengajar:';
+
+  const btnAvail = document.getElementById('btn-set-availability');
+  if (btnAvail) btnAvail.textContent = isEn ? 'Set Time (Default: All)' : 'Atur Waktu (Default: Semua)';
+
+  const btnAddCourse = document.querySelector('#form-add-course button[type="submit"]');
+  if (btnAddCourse) btnAddCourse.textContent = isEn ? '+ Add Course' : '+ Tambah Matkul';
+
+  // Room Form
+  const roomNameInput = document.getElementById('input-room');
+  if (roomNameInput) roomNameInput.placeholder = isEn ? 'Room Code' : 'Kode Ruangan';
+  
+  const capacityInput = document.getElementById('input-room-capacity');
+  if (capacityInput) capacityInput.placeholder = isEn ? 'Capacity' : 'Kapasitas';
+
+  const btnAddRoom = document.querySelector('#form-add-room button[type="submit"]');
+  if (btnAddRoom) btnAddRoom.textContent = isEn ? '+ Add' : '+ Tambah';
+
+  // Time Slot Form
+  const btnAddTimeSlot = document.querySelector('#form-add-timeslot button[type="submit"]');
+  if (btnAddTimeSlot) btnAddTimeSlot.textContent = isEn ? '+ Add Time Slot' : '+ Tambah Jam';
+
+  // Versioning
+  const versionNameInput = document.getElementById('input-version-name');
+  if (versionNameInput) versionNameInput.placeholder = isEn ? 'Version name...' : 'Nama versi...';
+  
+  const btnSaveVersion = document.getElementById('btn-save-version');
+  if (btnSaveVersion) btnSaveVersion.textContent = isEn ? '💾 Save' : '💾 Simpan';
+
+  const btnCompare = document.getElementById('btn-compare-versions');
+  if (btnCompare) btnCompare.textContent = isEn ? '🔍 Compare Versions' : '🔍 Bandingkan Versi';
+
+  // Actions
+  const btnPreset = document.getElementById('btn-preset');
+  if (btnPreset) btnPreset.textContent = isEn ? '📋 Load Preset' : '📋 Load Preset';
+
+  const btnGen = document.getElementById('btn-generate');
+  if (btnGen && !state.isRunning) btnGen.textContent = isEn ? '⚡ Generate Schedule' : '⚡ Generate Jadwal';
+
+  const btnAutoFix = document.getElementById('btn-autofix');
+  if (btnAutoFix) btnAutoFix.textContent = isEn ? '🔧 Auto-Fix Conflicts' : '🔧 Auto-Fix Konflik';
+
+  const btnReset = document.getElementById('btn-reset');
+  if (btnReset) btnReset.textContent = isEn ? '🗑️ Reset' : '🗑️ Reset';
+
+  const btnPersonal = document.getElementById('btn-personal-export');
+  if (btnPersonal) btnPersonal.textContent = isEn ? '👤 Print Personal Schedule' : '👤 Cetak Jadwal Personal';
+
+  // Calendar
+  const calHeader = document.querySelector('.calendar-title-bar h2');
+  if (calHeader) {
+    calHeader.firstChild.textContent = isEn ? '📅 Course Schedule ' : '📅 Jadwal Kuliah ';
+  }
+  
+  const btnPrint = document.getElementById('btn-print');
+  if (btnPrint) btnPrint.textContent = isEn ? '🖨️ Print' : '🖨️ Cetak';
+
+  const filterNone = document.querySelector('#filter-type option[value="none"]');
+  if (filterNone) filterNone.textContent = isEn ? '🔍 All' : '🔍 Semua';
+  
+  const filterLecturer = document.querySelector('#filter-type option[value="lecturer"]');
+  if (filterLecturer) filterLecturer.textContent = isEn ? '👨‍🏫 Lecturer' : '👨‍🏫 Dosen';
+  
+  const filterRoom = document.querySelector('#filter-type option[value="room"]');
+  if (filterRoom) filterRoom.textContent = isEn ? '🏢 Room' : '🏢 Ruangan';
+  
+  const filterSemester = document.querySelector('#filter-type option[value="semester"]');
+  if (filterSemester) filterSemester.textContent = isEn ? '📚 Semester' : '📚 Semester';
+
+  // Stats Bar Labels
+  const lblConflicts = document.querySelector('#stat-conflicts');
+  if (lblConflicts) lblConflicts.parentNode.querySelector('.stat-label').textContent = isEn ? 'Conflicts' : 'Konflik';
+  
+  const lblTemp = document.querySelector('#stat-temp');
+  if (lblTemp) lblTemp.parentNode.querySelector('.stat-label').textContent = isEn ? 'Temperature (T)' : 'Suhu (T)';
+  
+  const lblIter = document.querySelector('#stat-iter');
+  if (lblIter) lblIter.parentNode.querySelector('.stat-label').textContent = isEn ? 'Iterations' : 'Iterasi';
+  
+  const lblFitness = document.querySelector('#stat-fitness');
+  if (lblFitness) lblFitness.parentNode.querySelector('.stat-label').textContent = isEn ? 'Best Fitness' : 'Best Fitness';
+  
+  const lblScore = document.querySelector('#stat-score');
+  if (lblScore) lblScore.parentNode.querySelector('.stat-label').textContent = isEn ? 'Quality Score' : 'Skor Kualitas';
+
+  // Conflict Center
+  const ccHeader = document.querySelector('.conflict-header h3');
+  if (ccHeader) ccHeader.textContent = isEn ? '🚨 Conflict Center' : '🚨 Conflict Center';
+
+  // Dashboard Title
+  const dashHeader = document.querySelector('.dashboard-header h3');
+  if (dashHeader) dashHeader.textContent = isEn ? '📊 Statistics Dashboard' : '📊 Dashboard Statistik';
+
+  const btnToggleDash = document.getElementById('btn-toggle-dashboard');
+  if (btnToggleDash) {
+    const isClosed = btnToggleDash.textContent.includes('Tutup') || btnToggleDash.textContent.includes('Close');
+    if (isClosed) {
+      btnToggleDash.textContent = isEn ? '▼ Close' : '▼ Tutup';
+    } else {
+      btnToggleDash.textContent = isEn ? '▲ Open' : '▲ Buka';
+    }
+  }
+
+  const chartCards = document.querySelectorAll('.chart-card h4');
+  if (chartCards.length >= 3) {
+    chartCards[0].textContent = isEn ? '🏢 Room Utilization' : '🏢 Utilisasi Ruangan';
+    chartCards[1].textContent = isEn ? '👨‍🏫 Lecturer Load' : '👨‍🏫 Beban Dosen';
+    chartCards[2].textContent = isEn ? '📅 Daily Distribution' : '📅 Distribusi per Hari';
+  }
+
+  // Log and Graph Titles
+  const logTitle = document.querySelector('.log-panel h3');
+  if (logTitle) logTitle.textContent = isEn ? '🖥️ Algorithm Log' : '🖥️ Log Algoritma';
+  
+  const graphTitle = document.querySelector('.graph-panel h3');
+  if (graphTitle) graphTitle.textContent = isEn ? '🕸️ Conflict Graph (Color = Schedule)' : '🕸️ Graf Konflik (Warna = Jadwal)';
+
+  // Modals text update
+  // Availability Modal
+  const modalAvailHeader = document.querySelector('#modal-availability .modal-header h3');
+  if (modalAvailHeader) modalAvailHeader.textContent = isEn ? 'Set Lecturer Teaching Availability' : 'Atur Ketersediaan Waktu Dosen';
+  
+  const modalAvailDesc = document.querySelector('#modal-availability .modal-body p');
+  if (modalAvailDesc) modalAvailDesc.textContent = isEn ? 'Check the times this lecturer is AVAILABLE to teach.' : 'Centang jam berapa saja dosen ini BISA mengajar.';
+  
+  const btnResetAvail = document.getElementById('btn-reset-avail');
+  if (btnResetAvail) btnResetAvail.textContent = isEn ? 'Select All' : 'Pilih Semua';
+  
+  const btnSaveAvail = document.getElementById('btn-save-avail');
+  if (btnSaveAvail) btnSaveAvail.textContent = isEn ? 'Save' : 'Simpan';
+
+  // Personal Export Modal
+  const modalPersHeader = document.querySelector('#modal-personal-export .modal-header h3');
+  if (modalPersHeader) modalPersHeader.textContent = isEn ? '👤 Print Personal Schedule' : '👤 Cetak Jadwal Personal';
+  
+  const modalPersDesc = document.querySelector('#modal-personal-export .modal-body p');
+  if (modalPersDesc) modalPersDesc.textContent = isEn ? 'Select Lecturer or Class to print their specific schedule.' : 'Pilih Dosen atau Kelas untuk mencetak jadwal spesifik mereka.';
+  
+  const labelsPers = document.querySelectorAll('#modal-personal-export .modal-body label');
+  if (labelsPers.length >= 3) {
+    labelsPers[0].textContent = isEn ? 'Filter:' : 'Filter:';
+    labelsPers[1].textContent = isEn ? 'Choose:' : 'Pilih:';
+    labelsPers[2].textContent = isEn ? 'Format:' : 'Format:';
+  }
+
+  const optPersLect = document.querySelector('#personal-filter-type option[value="lecturer"]');
+  if (optPersLect) optPersLect.textContent = isEn ? '👨‍🏫 Per Lecturer' : '👨‍🏫 Per Dosen';
+  
+  const optPersClass = document.querySelector('#personal-filter-type option[value="class"]');
+  if (optPersClass) optPersClass.textContent = isEn ? '🏫 Per Class' : '🏫 Per Kelas';
+
+  const btnCancelPers = document.getElementById('btn-cancel-personal');
+  if (btnCancelPers) btnCancelPers.textContent = isEn ? 'Cancel' : 'Batal';
+  
+  const btnDoPers = document.getElementById('btn-do-personal-export');
+  if (btnDoPers) btnDoPers.textContent = isEn ? '📥 Export' : '📥 Ekspor';
+
+  const qrDesc = document.querySelector('#personal-qr-section span');
+  if (qrDesc) qrDesc.textContent = isEn ? 'Scan this QR to view the personal schedule on mobile, or copy the link below.' : 'Scan QR ini untuk melihat jadwal personal via HP, atau salin tautan di bawah.';
+  
+  const btnCopyShare = document.getElementById('btn-copy-share-url');
+  if (btnCopyShare) btnCopyShare.textContent = isEn ? 'Copy' : 'Salin';
+
+  // Version Compare Modal
+  const modalCompHeader = document.querySelector('#modal-version-compare .modal-header h3');
+  if (modalCompHeader) modalCompHeader.textContent = isEn ? '🔍 Version Comparison (Diff View)' : '🔍 Perbandingan Versi (Diff View)';
+  
+  const modalCompDesc = document.querySelector('#modal-version-compare .modal-body p');
+  if (modalCompDesc) modalCompDesc.textContent = isEn ? 'Compare two schedule versions side-by-side to see differences in time slots and rooms.' : 'Bandingkan dua versi jadwal secara berdampingan untuk melihat perbedaan slot waktu dan ruangan.';
+
+  const labelsComp = document.querySelectorAll('#modal-version-compare .modal-body label');
+  if (labelsComp.length >= 3) {
+    labelsComp[0].textContent = isEn ? 'Version A (Base):' : 'Versi A (Basis):';
+    labelsComp[1].textContent = isEn ? 'Version B (Compare):' : 'Versi B (Pembanding):';
+    const checkboxLabel = document.querySelector('#modal-version-compare .modal-body label[for="compare-diff-only"]') || labelsComp[2];
+    if (checkboxLabel) {
+      const chk = document.getElementById('compare-diff-only');
+      checkboxLabel.innerHTML = '';
+      if (chk) checkboxLabel.appendChild(chk);
+      checkboxLabel.appendChild(document.createTextNode(isEn ? ' Show differences only' : ' Tampilkan perbedaan saja'));
+    }
+  }
+
+  const btnCloseCompare = document.getElementById('btn-close-compare');
+  if (btnCloseCompare) btnCloseCompare.textContent = isEn ? 'Close' : 'Tutup';
+
+  // Onboarding text
+  const onboardingTitle0 = document.querySelector('.onboarding-step[data-step="0"] h2');
+  if (onboardingTitle0) onboardingTitle0.textContent = isEn ? 'Welcome to AI Auto-Scheduler!' : 'Selamat Datang di AI Auto-Scheduler!';
+  const onboardingP0_1 = document.querySelector('.onboarding-step[data-step="0"] p:nth-of-type(1)');
+  if (onboardingP0_1) onboardingP0_1.textContent = isEn ? 'AI-powered automated course scheduling application. Let\'s start a quick tour.' : 'Aplikasi penjadwalan kuliah otomatis berbasis kecerdasan buatan. Mari mulai tur singkat.';
+  const onboardingP0_2 = document.querySelector('.onboarding-step[data-step="0"] p:nth-of-type(2)');
+  if (onboardingP0_2) onboardingP0_2.textContent = isEn ? 'Use a desktop or larger screen for the best experience.' : 'Gunakan desktop atau layar yang lebih besar untuk pengalaman terbaik.';
+
+  const onboardingTitle1 = document.querySelector('.onboarding-step[data-step="1"] h2');
+  if (onboardingTitle1) onboardingTitle1.textContent = isEn ? '1. Add Data' : '1. Tambahkan Data';
+  const onboardingP1 = document.querySelector('.onboarding-step[data-step="1"] p');
+  if (onboardingP1) onboardingP1.innerHTML = isEn ? 'Fill in courses, rooms, and time slots in the <strong>left sidebar</strong>. Or click <strong>"📋 Load Preset"</strong> for sample data.' : 'Isi mata kuliah, ruangan, dan jam kuliah di <strong>sidebar kiri</strong>. Atau klik <strong>"📋 Load Preset"</strong> untuk data contoh.';
+
+  const onboardingTitle2 = document.querySelector('.onboarding-step[data-step="2"] h2');
+  if (onboardingTitle2) onboardingTitle2.textContent = isEn ? '2. Generate Schedule' : '2. Generate Jadwal';
+  const onboardingP2 = document.querySelector('.onboarding-step[data-step="2"] p');
+  if (onboardingP2) onboardingP2.textContent = isEn ? 'Click "⚡ Generate Schedule" and watch the AI assemble an optimal schedule without conflicts.' : 'Klik "⚡ Generate Jadwal" dan saksikan AI menyusun jadwal optimal tanpa konflik.';
+
+  const onboardingTitle3 = document.querySelector('.onboarding-step[data-step="3"] h2');
+  if (onboardingTitle3) onboardingTitle3.textContent = isEn ? '3. Modify & Export' : '3. Modifikasi & Export';
+  const onboardingP3 = document.querySelector('.onboarding-step[data-step="3"] p');
+  if (onboardingP3) onboardingP3.innerHTML = isEn ? '<strong>Drag & drop</strong> cards for manual adjustments. Then export to <strong>CSV, Excel, PDF, or PNG</strong>. Use <strong>Ctrl+Z</strong> to undo!' : '<strong>Drag & drop</strong> kartu untuk penyesuaian manual. Lalu export ke <strong>CSV, Excel, PDF, atau PNG</strong>. Gunakan <strong>Ctrl+Z</strong> untuk undo!';
+
+  const btnSkip = document.getElementById('onboarding-skip');
+  if (btnSkip) btnSkip.textContent = isEn ? 'Skip' : 'Lewati';
+
+  const btnTheme = document.getElementById('btn-theme-toggle');
+  if (btnTheme) {
+    btnTheme.title = isEn ? 'Switch Light/Dark Mode' : 'Ganti Mode Terang/Gelap';
+  }
+
+  // Refresh lists
+  renderTimeSlotList();
+  renderCourseList();
+  renderRoomList();
+  renderLegend();
+  if (state.schedule) {
+    renderCalendar(state.schedule);
+    renderConflictCenter();
   }
 }
+
+// ============================================================
+// 8C. CONFLICT CENTER (first duplicate placeholder, deleted)
+// ============================================================
 
 // ============================================================
 // 9. GENERATE SCHEDULE (SA + Animation)
@@ -1736,27 +2213,28 @@ function showTooltip(e) {
   if (!course || !assignment) return;
 
   const room = state.rooms.find(r => r.name === assignment.room);
-  const dayName = DAYS[assignment.dayIndex] || '?';
+  const isEn = state.lang === 'en';
+  const dayName = getDayName(assignment.dayIndex, isEn);
   const timeLabel = state.timeSlots[assignment.timeIndex]?.label || '?';
 
   // Check status
   const issues = [];
   if (room && course.students > room.capacity) {
-    issues.push(`Kapasitas kurang (${room.capacity} < ${course.students})`);
+    issues.push(isEn ? `Insufficient capacity (${room.capacity} < ${course.students})` : `Kapasitas kurang (${room.capacity} < ${course.students})`);
   }
   if (!isLecturerAvailable(course.lecturerAvailability, assignment.dayIndex, assignment.timeIndex)) {
-    issues.push(`Dosen tidak tersedia di waktu ini`);
+    issues.push(isEn ? `Lecturer unavailable at this time` : `Dosen tidak tersedia di waktu ini`);
   }
 
   const statusHtml = issues.length > 0
     ? `<div class="tooltip-status tooltip-bad">⚠️ ${issues.join(', ')}</div>`
-    : `<div class="tooltip-status tooltip-ok">✅ Tidak ada konflik</div>`;
+    : `<div class="tooltip-status tooltip-ok">${isEn ? '✅ No conflicts' : '✅ Tidak ada konflik'}</div>`;
 
-  let availStr = "Bervariasi (Lihat Detail)";
+  let availStr = isEn ? "Various (See Details)" : "Bervariasi (Lihat Detail)";
   if (!course.lecturerAvailability || course.lecturerAvailability.length === 0) {
-    availStr = "Semua Jam";
+    availStr = isEn ? "All Hours" : "Semua Jam";
   } else if (typeof course.lecturerAvailability[0] === 'number') {
-    availStr = course.lecturerAvailability.map(d => DAYS[d]?.slice(0,3)).join(', ');
+    availStr = course.lecturerAvailability.map(d => getDayName(d, isEn).slice(0,3)).join(', ');
   }
 
   const tooltip = document.getElementById('tooltip');
@@ -1764,13 +2242,13 @@ function showTooltip(e) {
     <div class="tooltip-title">
       <span style="color:${course.color}">●</span> ${course.name}
     </div>
-    <div class="tooltip-row"><span>Dosen</span><span>${course.lecturer}</span></div>
-    <div class="tooltip-row"><span>SKS</span><span>${course.sks}</span></div>
-    <div class="tooltip-row"><span>Mahasiswa</span><span>${course.students || '?'}</span></div>
-    <div class="tooltip-row"><span>Ruangan</span><span>${assignment.room}${room ? ` (kap. ${room.capacity})` : ''}</span></div>
-    <div class="tooltip-row"><span>Jadwal</span><span>${dayName}, ${timeLabel}</span></div>
-    <div class="tooltip-row"><span>Semester</span><span>${course.semester || '?'}</span></div>
-    <div class="tooltip-row"><span>Ketersediaan</span><span>${availStr}</span></div>
+    <div class="tooltip-row"><span>${isEn ? 'Lecturer' : 'Dosen'}</span><span>${course.lecturer}</span></div>
+    <div class="tooltip-row"><span>${isEn ? 'Credits' : 'SKS'}</span><span>${course.sks}</span></div>
+    <div class="tooltip-row"><span>${isEn ? 'Students' : 'Mahasiswa'}</span><span>${course.students || '?'}</span></div>
+    <div class="tooltip-row"><span>${isEn ? 'Room' : 'Ruangan'}</span><span>${assignment.room}${room ? ` (${isEn ? 'cap.' : 'kap.'} ${room.capacity})` : ''}</span></div>
+    <div class="tooltip-row"><span>${isEn ? 'Schedule' : 'Jadwal'}</span><span>${dayName}, ${timeLabel}</span></div>
+    <div class="tooltip-row"><span>${isEn ? 'Semester' : 'Semester'}</span><span>${course.semester || '?'}</span></div>
+    <div class="tooltip-row"><span>${isEn ? 'Availability' : 'Ketersediaan'}</span><span>${availStr}</span></div>
     ${statusHtml}
   `;
   tooltip.style.display = 'block';
@@ -1892,13 +2370,24 @@ function loadVersion(index) {
   state.timeSlots = JSON.parse(JSON.stringify(version.timeSlots));
   state.schedule = JSON.parse(JSON.stringify(version.schedule));
 
+  rebuildConflictGraph();
   renderCourseList();
   renderRoomList();
   renderTimeSlotList();
   renderLegend();
   renderCalendar(state.schedule);
   renderConflictCenter();
-  renderStats({ conflicts: 0, temperature: 0, iteration: 'Loaded', bestPenalty: 0 });
+  
+  const maxTimeIndex = state.timeSlots.length;
+  const roomCapacities = buildRoomCapacities();
+  const result = calculateFitness(state.schedule, state.conflictGraph, state.courses, maxTimeIndex, roomCapacities);
+  renderStats({
+    conflicts: result.conflicts,
+    temperature: 0,
+    iteration: 'Loaded',
+    bestPenalty: result.penalty
+  });
+
   saveState();
   pushHistory();
   showNotification(`📂 Versi "${version.name}" berhasil dimuat!`, 'success');
@@ -2076,6 +2565,7 @@ function openPersonalExportModal() {
   }
 
   document.getElementById('modal-personal-export').style.display = 'flex';
+  document.getElementById('personal-qr-section').style.display = 'none';
   updatePersonalFilterOptions();
 }
 
@@ -2128,6 +2618,9 @@ function updatePersonalFilterOptions() {
 
   // Clear preview
   const preview = document.getElementById('personal-preview');
+  preview.style.display = 'none';
+  preview.innerHTML = '';
+  document.getElementById('personal-qr-section').style.display = 'none';
   preview.style.display = 'none';
   preview.innerHTML = '';
 }
@@ -2367,9 +2860,21 @@ function undo() {
   }
   state.historyIndex--;
   state.schedule = JSON.parse(JSON.stringify(state.history[state.historyIndex]));
+  rebuildConflictGraph();
   renderCalendar(state.schedule);
   renderConflictCenter();
   renderDashboard();
+  
+  const maxTimeIndex = state.timeSlots.length;
+  const roomCapacities = buildRoomCapacities();
+  const result = calculateFitness(state.schedule, state.conflictGraph, state.courses, maxTimeIndex, roomCapacities);
+  renderStats({
+    conflicts: result.conflicts,
+    temperature: 0,
+    iteration: 'Undo',
+    bestPenalty: result.penalty
+  });
+
   saveState();
   updateUndoRedoButtons();
   showNotification('↩️ Undo berhasil.', 'info');
@@ -2383,9 +2888,21 @@ function redo() {
   }
   state.historyIndex++;
   state.schedule = JSON.parse(JSON.stringify(state.history[state.historyIndex]));
+  rebuildConflictGraph();
   renderCalendar(state.schedule);
   renderConflictCenter();
   renderDashboard();
+
+  const maxTimeIndex = state.timeSlots.length;
+  const roomCapacities = buildRoomCapacities();
+  const result = calculateFitness(state.schedule, state.conflictGraph, state.courses, maxTimeIndex, roomCapacities);
+  renderStats({
+    conflicts: result.conflicts,
+    temperature: 0,
+    iteration: 'Redo',
+    bestPenalty: result.penalty
+  });
+
   saveState();
   updateUndoRedoButtons();
   showNotification('↪️ Redo berhasil.', 'info');
@@ -2490,7 +3007,8 @@ function showOnboarding() {
     steps[index].style.display = 'block';
     dots[index].classList.add('active');
     currentStep = index;
-    nextBtn.textContent = index === steps.length - 1 ? 'Mulai! 🚀' : 'Selanjutnya →';
+    const isEn = state.lang === 'en';
+    nextBtn.textContent = index === steps.length - 1 ? (isEn ? 'Start! 🚀' : 'Mulai! 🚀') : (isEn ? 'Next →' : 'Selanjutnya →');
   }
 
   function closeOnboarding() {
@@ -2560,7 +3078,6 @@ function renderDashboard() {
 
   const roomLabels = Object.keys(roomUsage);
   const roomData = roomLabels.map(r => roomUsage[r]);
-  const roomMax = roomLabels.map(() => totalSlots);
   const roomColors = ['#6366f1', '#8b5cf6', '#a78bfa', '#c4b5fd', '#ddd6fe', '#ede9fe'];
 
   renderChart('chart-room-util', 'doughnut', {
@@ -2593,7 +3110,7 @@ function renderDashboard() {
   renderChart('chart-lecturer-load', 'bar', {
     labels: lecLabels,
     datasets: [{
-      label: 'Jml Matkul',
+      label: isEn ? 'Course Count' : 'Jml Matkul',
       data: lecData,
       backgroundColor: 'rgba(99, 102, 241, 0.6)',
       borderColor: '#6366f1',
@@ -2617,9 +3134,9 @@ function renderDashboard() {
   }
 
   renderChart('chart-day-dist', 'bar', {
-    labels: DAYS.map(d => d.slice(0, 3)),
+    labels: DAYS.map((d, idx) => getDayName(idx, isEn).slice(0, 3)),
     datasets: [{
-      label: 'Jml Matkul',
+      label: isEn ? 'Course Count' : 'Jml Matkul',
       data: dayDist,
       backgroundColor: ['#6366f1', '#8b5cf6', '#a78bfa', '#c084fc', '#d946ef'],
       borderWidth: 0,
@@ -2635,25 +3152,22 @@ function renderDashboard() {
 }
 
 function renderChart(canvasId, type, data, options) {
-  if (typeof Chart === 'undefined') return;
+  const ctx = document.getElementById(canvasId);
+  if (!ctx) return;
 
-  // Destroy existing chart if any
   if (chartInstances[canvasId]) {
     chartInstances[canvasId].destroy();
   }
 
-  const ctx = document.getElementById(canvasId);
-  if (!ctx) return;
+  const defaultOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+  };
 
   chartInstances[canvasId] = new Chart(ctx, {
-    type,
-    data,
-    options: {
-      responsive: true,
-      maintainAspectRatio: true,
-      animation: { duration: 600, easing: 'easeOutQuart' },
-      ...options,
-    }
+    type: type,
+    data: data,
+    options: Object.assign({}, defaultOptions, options)
   });
 }
 
@@ -2674,6 +3188,7 @@ function renderConflictCenter() {
   panel.style.display = 'block';
   const issues = [];
   const entries = Object.entries(state.schedule);
+  const isEn = state.lang === 'en';
 
   for (let i = 0; i < entries.length; i++) {
     const [idA, slotA] = entries[i];
@@ -2682,32 +3197,50 @@ function renderConflictCenter() {
 
     // Check lecturer availability
     if (!isLecturerAvailable(courseA.lecturerAvailability, slotA.dayIndex, slotA.timeIndex)) {
-      const dayName = DAYS[slotA.dayIndex];
+      const dayName = getDayName(slotA.dayIndex, isEn);
       const timeLabel = state.timeSlots[slotA.timeIndex]?.label || '';
-      issues.push({ type: 'hard', icon: '🚫', text: `<strong>${courseA.name}</strong> — ${courseA.lecturer} tidak tersedia di ${dayName} ${timeLabel}` });
+      const text = isEn 
+        ? `<strong>${courseA.name}</strong> — ${courseA.lecturer} is unavailable on ${dayName} ${timeLabel}`
+        : `<strong>${courseA.name}</strong> — ${courseA.lecturer} tidak tersedia di ${dayName} ${timeLabel}`;
+      issues.push({ type: 'hard', icon: '🚫', text });
     }
 
     // Check room capacity and type suitability
     const room = state.rooms.find(r => r.name === slotA.room);
     if (room) {
       if (courseA.students > room.capacity) {
-        issues.push({ type: 'hard', icon: '🏢', text: `<strong>${courseA.name}</strong> — ${courseA.students} mahasiswa di ${slotA.room} (kapasitas ${room.capacity})` });
+        const text = isEn
+          ? `<strong>${courseA.name}</strong> — ${courseA.students} students in ${slotA.room} (capacity ${room.capacity})`
+          : `<strong>${courseA.name}</strong> — ${courseA.students} mahasiswa di ${slotA.room} (kapasitas ${room.capacity})`;
+        issues.push({ type: 'hard', icon: '🏢', text });
       }
       const roomType = room.type || 'Kelas';
       const cType = courseA.type || 'Teori';
       if (cType === 'Praktikum' && roomType !== 'Lab') {
-        issues.push({ type: 'hard', icon: '🧪', text: `<strong>${courseA.name}</strong> (Praktikum) — Ditempatkan di ruangan <strong>${slotA.room}</strong> berjenis <strong>${roomType}</strong> (Harus di ruangan Lab)` });
+        const text = isEn
+          ? `<strong>${courseA.name}</strong> (Practical) — Placed in room <strong>${slotA.room}</strong> of type <strong>${roomType === 'Kelas' ? 'Class' : roomType}</strong> (Must be in a Lab room)`
+          : `<strong>${courseA.name}</strong> (Praktikum) — Ditempatkan di ruangan <strong>${slotA.room}</strong> berjenis <strong>${roomType}</strong> (Harus di ruangan Lab)`;
+        issues.push({ type: 'hard', icon: '🧪', text });
       } else if (cType === 'Teori' && roomType === 'Lab') {
-        issues.push({ type: 'hard', icon: '🧪', text: `<strong>${courseA.name}</strong> (Teori) — Ditempatkan di ruangan <strong>${slotA.room}</strong> berjenis <strong>${roomType}</strong> (Tidak boleh di ruangan Lab)` });
+        const text = isEn
+          ? `<strong>${courseA.name}</strong> (Theory) — Placed in room <strong>${slotA.room}</strong> of type <strong>${roomType}</strong> (Cannot be in a Lab room)`
+          : `<strong>${courseA.name}</strong> (Teori) — Ditempatkan di ruangan <strong>${slotA.room}</strong> berjenis <strong>${roomType}</strong> (Tidak boleh di ruangan Lab)`;
+        issues.push({ type: 'hard', icon: '🧪', text });
       }
     }
 
     // Check soft constraints
     if (courseA.preference === 'avoid-morning' && slotA.timeIndex === 0) {
-      issues.push({ type: 'soft', icon: '☀️', text: `<strong>${courseA.name}</strong> — Ditempatkan di pagi hari (preferensi: hindari pagi)` });
+      const text = isEn
+        ? `<strong>${courseA.name}</strong> — Placed in the morning (preference: avoid morning)`
+        : `<strong>${courseA.name}</strong> — Ditempatkan di pagi hari (preferensi: hindari pagi)`;
+      issues.push({ type: 'soft', icon: '☀️', text });
     }
     if (courseA.preference === 'avoid-evening' && slotA.timeIndex === state.timeSlots.length - 1) {
-      issues.push({ type: 'soft', icon: '🌙', text: `<strong>${courseA.name}</strong> — Ditempatkan di sore hari (preferensi: hindari sore)` });
+      const text = isEn
+        ? `<strong>${courseA.name}</strong> — Placed in the evening (preference: avoid evening)`
+        : `<strong>${courseA.name}</strong> — Ditempatkan di sore hari (preferensi: hindari sore)`;
+      issues.push({ type: 'soft', icon: '🌙', text });
     }
 
     for (let j = i + 1; j < entries.length; j++) {
@@ -2722,16 +3255,23 @@ function renderConflictCenter() {
 
       if (sameTime) {
         if (slotA.room === slotB.room) {
-          const dayName = DAYS[slotA.dayIndex];
+          const dayName = getDayName(slotA.dayIndex, isEn);
           const timeLabel = state.timeSlots[slotA.timeIndex]?.label || '';
-          issues.push({ type: 'hard', icon: '⚠️', text: `<strong>${courseA.name}</strong> & <strong>${courseB.name}</strong> — Ruangan sama (${slotA.room}) di ${dayName} ${timeLabel}` });
+          const text = isEn
+            ? `<strong>${courseA.name}</strong> & <strong>${courseB.name}</strong> — Same room (${slotA.room}) on ${dayName} ${timeLabel}`
+            : `<strong>${courseA.name}</strong> & <strong>${courseB.name}</strong> — Ruangan sama (${slotA.room}) di ${dayName} ${timeLabel}`;
+          issues.push({ type: 'hard', icon: '⚠️', text });
         }
         if (state.conflictGraph && state.conflictGraph.isConflict(idA, idB)) {
-          const dayName = DAYS[slotA.dayIndex];
+          const dayName = getDayName(slotA.dayIndex, isEn);
           const timeLabel = state.timeSlots[slotA.timeIndex]?.label || '';
           const key = [idA, idB].sort().join('|');
           const reason = state.conflictGraph.edgeReasons ? state.conflictGraph.edgeReasons.get(key) : '';
-          issues.push({ type: 'hard', icon: '🔗', text: `<strong>${courseA.name}</strong> & <strong>${courseB.name}</strong> — Bentrok ${reason ? '(' + reason + ')' : ''} di ${dayName} ${timeLabel}` });
+          const translatedReason = translateReason(reason, isEn);
+          const text = isEn
+            ? `<strong>${courseA.name}</strong> & <strong>${courseB.name}</strong> — Conflict ${translatedReason ? '(' + translatedReason + ')' : ''} on ${dayName} ${timeLabel}`
+            : `<strong>${courseA.name}</strong> & <strong>${courseB.name}</strong> — Bentrok ${reason ? '(' + reason + ')' : ''} di ${dayName} ${timeLabel}`;
+          issues.push({ type: 'hard', icon: '🔗', text });
         }
       }
     }
@@ -3459,4 +3999,186 @@ function updateComparisonTable() {
   }
 
   summaryEl.textContent = `Menampilkan ${countDisplayed} dari ${allCourseIds.size} matkul (${countChanged} berbeda)`;
+}
+
+// ============================================================
+// 21. QR CODE SHARING (Shareable URL + Canvas QR Code)
+// ============================================================
+
+function showPersonalQR() {
+  const filterType = document.getElementById('personal-filter-type').value;
+  const filterValue = document.getElementById('personal-filter-value').value;
+  const entries = getFilteredEntries();
+  if (entries.length === 0) {
+    showNotification('Pilih dosen atau kelas terlebih dahulu!', 'warning');
+    return;
+  }
+
+  const label = filterType === 'lecturer' ? filterValue : `Kelas ${filterValue}`;
+  const shareData = entries.map(([courseId, slot]) => {
+    const course = state.courses.find(c => c.id === courseId);
+    return {
+      name: course.name,
+      lecturer: course.lecturer,
+      sks: course.sks,
+      color: course.color,
+      day: slot.dayIndex,
+      time: slot.timeIndex,
+      room: slot.room,
+      span: slot.span || 1
+    };
+  });
+
+  const payload = {
+    label: label,
+    schedule: shareData,
+    timeSlots: state.timeSlots.map(ts => ({ id: ts.id, label: ts.label }))
+  };
+
+  try {
+    // Convert payload to base64
+    const jsonStr = JSON.stringify(payload);
+    const base64 = btoa(unescape(encodeURIComponent(jsonStr)));
+    const shareUrl = `${window.location.origin}${window.location.pathname}?view=personal&data=${encodeURIComponent(base64)}`;
+
+    // Render QR
+    const qrCanvas = document.getElementById('personal-qr-canvas');
+    new QRious({
+      element: qrCanvas,
+      value: shareUrl,
+      size: 180,
+      level: 'M'
+    });
+
+    document.getElementById('personal-share-url').value = shareUrl;
+    document.getElementById('personal-qr-section').style.display = 'flex';
+    
+    // Scroll modal to QR code section
+    qrCanvas.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  } catch (err) {
+    console.error(err);
+    showNotification('Gagal membuat QR Code.', 'error');
+  }
+}
+
+function copyShareUrl() {
+  const urlInput = document.getElementById('personal-share-url');
+  if (!urlInput || !urlInput.value) return;
+
+  urlInput.select();
+  urlInput.setSelectionRange(0, 99999);
+  
+  navigator.clipboard.writeText(urlInput.value).then(() => {
+    showNotification('📋 Link berhasil disalin ke clipboard!', 'success');
+  }).catch(() => {
+    // Fallback copy
+    try {
+      document.execCommand('copy');
+      showNotification('📋 Link berhasil disalin ke clipboard!', 'success');
+    } catch (err) {
+      showNotification('Gagal menyalin link.', 'error');
+    }
+  });
+}
+
+function showSharedPersonalSchedule(base64Data) {
+  try {
+    const decodedJson = decodeURIComponent(escape(atob(base64Data)));
+    const payload = JSON.parse(decodedJson);
+    
+    // Wait for DOM to load
+    document.addEventListener('DOMContentLoaded', () => {
+      // Hide normal workspace sidebar, stats, header right
+      const sidebar = document.querySelector('.sidebar');
+      if (sidebar) sidebar.style.display = 'none';
+      const statsBar = document.querySelector('.stats-bar');
+      if (statsBar) statsBar.style.display = 'none';
+      const headerRight = document.querySelector('.header-right');
+      if (headerRight) headerRight.style.display = 'none';
+      
+      const calendarWrapper = document.getElementById('calendar-wrapper');
+      
+      // Hide conflict center, log panel, dashboard, graph panels if any
+      const conflictCenter = document.getElementById('conflict-center');
+      if (conflictCenter) conflictCenter.style.display = 'none';
+      const logPanel = document.querySelector('.bottom-panels');
+      if (logPanel) logPanel.style.display = 'none';
+      
+      // Add a share banner header
+      const banner = document.createElement('div');
+      banner.style.cssText = `
+        background: var(--bg-surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
+        padding: 16px 24px;
+        margin-bottom: 16px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        box-shadow: var(--shadow-sm);
+      `;
+      banner.innerHTML = `
+        <div>
+          <h3 style="font-size: 1.1rem; font-weight:600; color:var(--text-primary); margin:0;">👤 Jadwal Personal Shared View</h3>
+          <p style="font-size: 0.8rem; color:var(--text-secondary); margin:4px 0 0 0;">Menampilkan jadwal untuk: <strong>${payload.label}</strong></p>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="window.location.href=window.location.pathname">🌐 Buka App Utama</button>
+      `;
+      calendarWrapper.parentNode.insertBefore(banner, calendarWrapper);
+      
+      // Update calendar title
+      const titleEl = calendarWrapper.querySelector('.calendar-title-bar h2');
+      if (titleEl) {
+        titleEl.innerHTML = `📅 Jadwal ${payload.label} <button id="btn-print" class="btn btn-secondary btn-sm" style="margin-left: 12px; padding: 4px 8px;">🖨️ Cetak</button>`;
+        titleEl.querySelector('#btn-print').addEventListener('click', () => window.print());
+      }
+      
+      // Hide filter dropdown
+      const filterGrp = calendarWrapper.querySelector('.filter-group');
+      if (filterGrp) filterGrp.style.display = 'none';
+      const btnHeatmap = document.getElementById('btn-heatmap');
+      if (btnHeatmap) btnHeatmap.style.display = 'none';
+      
+      // Format schedules into a schedule object similar to state.schedule
+      const sharedSchedule = {};
+      const sharedCourses = [];
+      const sharedTimeSlots = payload.timeSlots.map((ts, idx) => ({ id: ts.id !== undefined ? ts.id : idx, label: ts.label || ts, locked: false }));
+      
+      payload.schedule.forEach((item, idx) => {
+        const courseId = `SHARED_MK_${idx}`;
+        sharedSchedule[courseId] = {
+          dayIndex: item.day,
+          timeIndex: item.time,
+          room: item.room,
+          span: item.span || 1
+        };
+        sharedCourses.push({
+          id: courseId,
+          name: item.name,
+          lecturer: item.lecturer,
+          sks: item.sks || 3,
+          color: item.color || '#6366f1'
+        });
+      });
+      
+      // Temporarily set state for rendering
+      state.schedule = sharedSchedule;
+      state.courses = sharedCourses;
+      state.timeSlots = sharedTimeSlots;
+      state.rooms = [...new Set(payload.schedule.map(s => s.room))].map(rName => ({ name: rName, capacity: 999 }));
+      
+      // Render calendar read-only
+      renderLegend();
+      renderCalendar(sharedSchedule);
+      
+      // Disable dragability on cards
+      document.querySelectorAll('.course-card').forEach(card => {
+        card.removeAttribute('draggable');
+        card.style.cursor = 'default';
+      });
+    });
+  } catch (e) {
+    console.error(e);
+    alert('Gagal memuat jadwal yang dibagikan. URL tidak valid atau data korup.');
+  }
 }
