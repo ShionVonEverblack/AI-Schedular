@@ -165,7 +165,7 @@ Output: Jadwal optimal (target: 0 konflik)
 ## 📸 Screenshot
 
 ![Tampilan Kalender Kelas Paralel](media__1780737767803.png)
-*(Note: Pastikan file `media__1780737767803.png` atau `screenshot.png` berada di folder yang sama)*
+
 *Tampilan utama: Sidebar input, kalender jadwal dengan warna matkul, statistik AI, dan graf konflik.*
 
 ---
