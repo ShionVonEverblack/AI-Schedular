@@ -1,5 +1,5 @@
 /**
- * app.js — UI Logic, Event Handlers, Calendar Rendering
+ * app.js - UI Logic, Event Handlers, Calendar Rendering
  * ======================================================
  * Menghubungkan algoritma AI (solver.js) dengan tampilan visual.
  * Mengelola state aplikasi, form input, render kalender,
@@ -383,7 +383,7 @@ function removeCourse(index) {
 }
 
 // ============================================================
-// 4B. INLINE EDIT — Course
+// 4B. INLINE EDIT - Course
 // ============================================================
 
 function startEditCourse(index) {
@@ -475,7 +475,7 @@ function removeRoom(index) {
 }
 
 // ============================================================
-// 5B. INLINE EDIT — Room
+// 5B. INLINE EDIT - Room
 // ============================================================
 
 function startEditRoom(index) {
@@ -605,7 +605,7 @@ function toggleTimeslotLock(index) {
 }
 
 // ============================================================
-// 6. RENDERING — Sidebar Lists
+// 6. RENDERING - Sidebar Lists
 // ============================================================
 
 function renderCourseList() {
@@ -679,7 +679,7 @@ function renderTimeSlotList() {
 }
 
 // ============================================================
-// 7. RENDERING — Calendar Grid
+// 7. RENDERING - Calendar Grid
 // ============================================================
 
 function renderCalendarEmpty() {
@@ -836,7 +836,7 @@ function renderLegend() {
 }
 
 // ============================================================
-// 8. RENDERING — Stats
+// 8. RENDERING - Stats
 // ============================================================
 
 function renderStats(data) {
@@ -848,18 +848,18 @@ function renderStats(data) {
   const elScore = document.getElementById('stat-score');
 
   if (!data) {
-    elConflicts.textContent = '—';
-    elTemp.textContent = '—';
-    elIter.textContent = '—';
-    elFitness.textContent = '—';
-    if (elScore) elScore.textContent = '—';
+    elConflicts.textContent = '-';
+    elTemp.textContent = '-';
+    elIter.textContent = '-';
+    elFitness.textContent = '-';
+    if (elScore) elScore.textContent = '-';
     elTempBar.style.width = '100%';
     return;
   }
 
   elConflicts.textContent = data.conflicts;
-  elTemp.textContent = typeof data.temperature === 'number' ? data.temperature.toFixed(2) : '—';
-  elIter.textContent = data.iteration !== undefined ? data.iteration.toLocaleString() : '—';
+  elTemp.textContent = typeof data.temperature === 'number' ? data.temperature.toFixed(2) : '-';
+  elIter.textContent = data.iteration !== undefined ? data.iteration.toLocaleString() : '-';
   elFitness.textContent = data.bestPenalty;
 
   // Temperature bar: percentage of initial temp
@@ -889,7 +889,7 @@ function renderStats(data) {
 }
 
 // ============================================================
-// 8B. SCORING & LANGUAGE HELPERS
+// 9. SCORING & LANGUAGE HELPERS
 // ============================================================
 
 function rebuildConflictGraph() {
@@ -1092,7 +1092,7 @@ function translateMessage(msg) {
     { pattern: /   ↳ \.\.\. dan (.+?) edge lainnya/i, replacement: '   ↳ ... and $1 other edges' },
     { pattern: /📦 Total slot tersedia: (.+?)/i, replacement: '📦 Total slots available: $1' },
     { pattern: /   ✅ (.+?) → (.+?) (.+?) \((.+?)\)/i, replacement: '   ✅ $1 → $2 $3 ($4)' },
-    { pattern: /   ⚠️ (.+?) — tidak ditemukan slot yang valid/i, replacement: '   ⚠️ $1 — no valid slot found' },
+    { pattern: /   ⚠️ (.+?) - tidak ditemukan slot yang valid/i, replacement: '   ⚠️ $1 - no valid slot found' },
     { pattern: /📂 Data sebelumnya berhasil dimuat dari penyimpanan lokal\./i, replacement: '📂 Previous data loaded from local storage.' },
     { pattern: /Aplikasi siap\. Klik "Load Preset" atau tambahkan data manual\./i, replacement: 'Application ready. Click "Load Preset" or add data manually.' },
     { pattern: /↩️ Undo jadwal\./i, replacement: '↩️ Undo schedule.' },
@@ -1406,12 +1406,9 @@ function applyLanguage() {
   }
 }
 
-// ============================================================
-// 8C. CONFLICT CENTER (first duplicate placeholder, deleted)
-// ============================================================
 
 // ============================================================
-// 9. GENERATE SCHEDULE (SA + Animation)
+// 10. GENERATE SCHEDULE (SA + Animation)
 // ============================================================
 
 function buildRoomCapacities() {
@@ -1488,7 +1485,7 @@ async function generateSchedule() {
   // Log locked timeslots
   const lockedCount = state.timeSlots.filter(ts => ts.locked).length;
   if (lockedCount > 0) {
-    addLog(`🔒 ${lockedCount} jam kuliah dikunci (istirahat) — dilewati`, 'info');
+    addLog(`🔒 ${lockedCount} jam kuliah dikunci (istirahat) - dilewati`, 'info');
   }
 
   // ── Step 2: Generate all available slots (only unlocked) ──
@@ -1586,7 +1583,7 @@ async function generateSchedule() {
 }
 
 // ============================================================
-// 10. RESET
+// 11. RESET
 // ============================================================
 
 function resetAll() {
@@ -1617,7 +1614,7 @@ function resetAll() {
 }
 
 // ============================================================
-// 11. EXPORT CSV
+// 12. EXPORT CSV
 // ============================================================
 
 function exportCSV() {
@@ -1668,7 +1665,7 @@ function exportCSV() {
 }
 
 // ============================================================
-// 11B. EXPORT PNG
+// 12B. EXPORT PNG
 // ============================================================
 
 async function exportPNG() {
@@ -1702,7 +1699,7 @@ async function exportPNG() {
 }
 
 // ============================================================
-// 11C. IMPORT CSV
+// 12C. IMPORT CSV
 // ============================================================
 
 function handleCSVImport(e) {
@@ -1821,7 +1818,7 @@ function parseCSVLine(line) {
 }
 
 // ============================================================
-// 12. UTILITIES
+// 13. UTILITIES
 // ============================================================
 
 /** Toast notification */
@@ -1866,7 +1863,7 @@ function hexToRgba(hex, alpha = 1) {
 }
 
 // ============================================================
-// 13. DRAG & DROP LOGIC (Mouse)
+// 14. DRAG & DROP (Mouse)
 // ============================================================
 
 function handleDragStart(e) {
@@ -2011,7 +2008,7 @@ function performDrop(courseId, dayIndex, timeIndex) {
 }
 
 // ============================================================
-// 13B. TOUCH DRAG & DROP (Mobile)
+// 14B. TOUCH DRAG & DROP (Mobile)
 // ============================================================
 
 let touchDragState = null;
@@ -2109,7 +2106,7 @@ function handleTouchEnd(e) {
 }
 
 // ============================================================
-// 14. GRAPH VISUALIZATION
+// 15. GRAPH VISUALIZATION
 // ============================================================
 
 function drawGraph(activeSchedule = state.schedule) {
@@ -2200,7 +2197,7 @@ function drawGraph(activeSchedule = state.schedule) {
 }
 
 // ============================================================
-// 15. TOOLTIP (Hover Detail)
+// 16. TOOLTIP (Hover Detail)
 // ============================================================
 
 function showTooltip(e) {
@@ -2273,7 +2270,7 @@ function hideTooltip() {
 }
 
 // ============================================================
-// 16. FILTER CALENDAR
+// 17. FILTER CALENDAR
 // ============================================================
 
 function handleFilterTypeChange(e) {
@@ -2291,7 +2288,7 @@ function handleFilterTypeChange(e) {
   }
 
   // Populate filter value dropdown
-  valueSelect.innerHTML = '<option value="">— Semua —</option>';
+  valueSelect.innerHTML = '<option value="">- Semua -</option>';
   let options = [];
 
   if (type === 'lecturer') {
@@ -2329,7 +2326,7 @@ function checkFilterMatch(course, assignment) {
 }
 
 // ============================================================
-// 17. VERSION MANAGEMENT
+// 18. VERSION MANAGEMENT
 // ============================================================
 
 function saveVersion() {
@@ -2424,7 +2421,7 @@ function renderVersionList() {
 }
 
 // ============================================================
-// 18. EXPORT EXCEL (SheetJS)
+// 19. EXPORT EXCEL (SheetJS)
 // ============================================================
 
 function exportExcel() {
@@ -2481,7 +2478,7 @@ function exportExcel() {
 }
 
 // ============================================================
-// 19. EXPORT PDF (jsPDF + AutoTable)
+// 20. EXPORT PDF (jsPDF + AutoTable)
 // ============================================================
 
 function exportPDF() {
@@ -2555,7 +2552,7 @@ function exportPDF() {
 }
 
 // ============================================================
-// 19B. PERSONAL EXPORT (Per Dosen / Per Kelas)
+// 20B. PERSONAL EXPORT (Per Dosen / Per Kelas)
 // ============================================================
 
 function openPersonalExportModal() {
@@ -2576,7 +2573,7 @@ function closePersonalExportModal() {
 function updatePersonalFilterOptions() {
   const filterType = document.getElementById('personal-filter-type').value;
   const filterValueSelect = document.getElementById('personal-filter-value');
-  filterValueSelect.innerHTML = '<option value="">— Pilih —</option>';
+  filterValueSelect.innerHTML = '<option value="">- Pilih -</option>';
 
   if (filterType === 'lecturer') {
     // Get unique lecturers
@@ -2828,7 +2825,7 @@ function exportPersonalCSV(entries, label, safeFilename) {
 }
 
 // ============================================================
-// 20. UNDO / REDO
+// 21. UNDO / REDO
 // ============================================================
 
 const MAX_HISTORY = 30;
@@ -2917,7 +2914,7 @@ function updateUndoRedoButtons() {
 }
 
 // ============================================================
-// 21. KEYBOARD SHORTCUTS
+// 22. KEYBOARD SHORTCUTS
 // ============================================================
 
 function handleKeyboardShortcut(e) {
@@ -2945,7 +2942,7 @@ function handleKeyboardShortcut(e) {
 }
 
 // ============================================================
-// 22. SIDEBAR SEARCH
+// 23. SIDEBAR SEARCH
 // ============================================================
 
 function handleSidebarSearch(e) {
@@ -2986,7 +2983,7 @@ function handleSidebarSearch(e) {
 }
 
 // ============================================================
-// 23. ONBOARDING TUTORIAL
+// 24. ONBOARDING TUTORIAL
 // ============================================================
 
 function showOnboarding() {
@@ -3038,7 +3035,7 @@ function showOnboarding() {
 }
 
 // ============================================================
-// 24. DASHBOARD STATISTICS
+// 25. DASHBOARD STATISTICS
 // ============================================================
 
 let chartInstances = {};
@@ -3172,7 +3169,7 @@ function renderChart(canvasId, type, data, options) {
 }
 
 // ============================================================
-// CONFLICT CENTER
+// 26. CONFLICT CENTER
 // ============================================================
 
 function renderConflictCenter() {
@@ -3200,8 +3197,8 @@ function renderConflictCenter() {
       const dayName = getDayName(slotA.dayIndex, isEn);
       const timeLabel = state.timeSlots[slotA.timeIndex]?.label || '';
       const text = isEn 
-        ? `<strong>${courseA.name}</strong> — ${courseA.lecturer} is unavailable on ${dayName} ${timeLabel}`
-        : `<strong>${courseA.name}</strong> — ${courseA.lecturer} tidak tersedia di ${dayName} ${timeLabel}`;
+        ? `<strong>${courseA.name}</strong> - ${courseA.lecturer} is unavailable on ${dayName} ${timeLabel}`
+        : `<strong>${courseA.name}</strong> - ${courseA.lecturer} tidak tersedia di ${dayName} ${timeLabel}`;
       issues.push({ type: 'hard', icon: '🚫', text });
     }
 
@@ -3210,21 +3207,21 @@ function renderConflictCenter() {
     if (room) {
       if (courseA.students > room.capacity) {
         const text = isEn
-          ? `<strong>${courseA.name}</strong> — ${courseA.students} students in ${slotA.room} (capacity ${room.capacity})`
-          : `<strong>${courseA.name}</strong> — ${courseA.students} mahasiswa di ${slotA.room} (kapasitas ${room.capacity})`;
+          ? `<strong>${courseA.name}</strong> - ${courseA.students} students in ${slotA.room} (capacity ${room.capacity})`
+          : `<strong>${courseA.name}</strong> - ${courseA.students} mahasiswa di ${slotA.room} (kapasitas ${room.capacity})`;
         issues.push({ type: 'hard', icon: '🏢', text });
       }
       const roomType = room.type || 'Kelas';
       const cType = courseA.type || 'Teori';
       if (cType === 'Praktikum' && roomType !== 'Lab') {
         const text = isEn
-          ? `<strong>${courseA.name}</strong> (Practical) — Placed in room <strong>${slotA.room}</strong> of type <strong>${roomType === 'Kelas' ? 'Class' : roomType}</strong> (Must be in a Lab room)`
-          : `<strong>${courseA.name}</strong> (Praktikum) — Ditempatkan di ruangan <strong>${slotA.room}</strong> berjenis <strong>${roomType}</strong> (Harus di ruangan Lab)`;
+          ? `<strong>${courseA.name}</strong> (Practical) - Placed in room <strong>${slotA.room}</strong> of type <strong>${roomType === 'Kelas' ? 'Class' : roomType}</strong> (Must be in a Lab room)`
+          : `<strong>${courseA.name}</strong> (Praktikum) - Ditempatkan di ruangan <strong>${slotA.room}</strong> berjenis <strong>${roomType}</strong> (Harus di ruangan Lab)`;
         issues.push({ type: 'hard', icon: '🧪', text });
       } else if (cType === 'Teori' && roomType === 'Lab') {
         const text = isEn
-          ? `<strong>${courseA.name}</strong> (Theory) — Placed in room <strong>${slotA.room}</strong> of type <strong>${roomType}</strong> (Cannot be in a Lab room)`
-          : `<strong>${courseA.name}</strong> (Teori) — Ditempatkan di ruangan <strong>${slotA.room}</strong> berjenis <strong>${roomType}</strong> (Tidak boleh di ruangan Lab)`;
+          ? `<strong>${courseA.name}</strong> (Theory) - Placed in room <strong>${slotA.room}</strong> of type <strong>${roomType}</strong> (Cannot be in a Lab room)`
+          : `<strong>${courseA.name}</strong> (Teori) - Ditempatkan di ruangan <strong>${slotA.room}</strong> berjenis <strong>${roomType}</strong> (Tidak boleh di ruangan Lab)`;
         issues.push({ type: 'hard', icon: '🧪', text });
       }
     }
@@ -3232,14 +3229,14 @@ function renderConflictCenter() {
     // Check soft constraints
     if (courseA.preference === 'avoid-morning' && slotA.timeIndex === 0) {
       const text = isEn
-        ? `<strong>${courseA.name}</strong> — Placed in the morning (preference: avoid morning)`
-        : `<strong>${courseA.name}</strong> — Ditempatkan di pagi hari (preferensi: hindari pagi)`;
+        ? `<strong>${courseA.name}</strong> - Placed in the morning (preference: avoid morning)`
+        : `<strong>${courseA.name}</strong> - Ditempatkan di pagi hari (preferensi: hindari pagi)`;
       issues.push({ type: 'soft', icon: '☀️', text });
     }
     if (courseA.preference === 'avoid-evening' && slotA.timeIndex === state.timeSlots.length - 1) {
       const text = isEn
-        ? `<strong>${courseA.name}</strong> — Placed in the evening (preference: avoid evening)`
-        : `<strong>${courseA.name}</strong> — Ditempatkan di sore hari (preferensi: hindari sore)`;
+        ? `<strong>${courseA.name}</strong> - Placed in the evening (preference: avoid evening)`
+        : `<strong>${courseA.name}</strong> - Ditempatkan di sore hari (preferensi: hindari sore)`;
       issues.push({ type: 'soft', icon: '🌙', text });
     }
 
@@ -3258,8 +3255,8 @@ function renderConflictCenter() {
           const dayName = getDayName(slotA.dayIndex, isEn);
           const timeLabel = state.timeSlots[slotA.timeIndex]?.label || '';
           const text = isEn
-            ? `<strong>${courseA.name}</strong> & <strong>${courseB.name}</strong> — Same room (${slotA.room}) on ${dayName} ${timeLabel}`
-            : `<strong>${courseA.name}</strong> & <strong>${courseB.name}</strong> — Ruangan sama (${slotA.room}) di ${dayName} ${timeLabel}`;
+            ? `<strong>${courseA.name}</strong> & <strong>${courseB.name}</strong> - Same room (${slotA.room}) on ${dayName} ${timeLabel}`
+            : `<strong>${courseA.name}</strong> & <strong>${courseB.name}</strong> - Ruangan sama (${slotA.room}) di ${dayName} ${timeLabel}`;
           issues.push({ type: 'hard', icon: '⚠️', text });
         }
         if (state.conflictGraph && state.conflictGraph.isConflict(idA, idB)) {
@@ -3269,8 +3266,8 @@ function renderConflictCenter() {
           const reason = state.conflictGraph.edgeReasons ? state.conflictGraph.edgeReasons.get(key) : '';
           const translatedReason = translateReason(reason, isEn);
           const text = isEn
-            ? `<strong>${courseA.name}</strong> & <strong>${courseB.name}</strong> — Conflict ${translatedReason ? '(' + translatedReason + ')' : ''} on ${dayName} ${timeLabel}`
-            : `<strong>${courseA.name}</strong> & <strong>${courseB.name}</strong> — Bentrok ${reason ? '(' + reason + ')' : ''} di ${dayName} ${timeLabel}`;
+            ? `<strong>${courseA.name}</strong> & <strong>${courseB.name}</strong> - Conflict ${translatedReason ? '(' + translatedReason + ')' : ''} on ${dayName} ${timeLabel}`
+            : `<strong>${courseA.name}</strong> & <strong>${courseB.name}</strong> - Bentrok ${reason ? '(' + reason + ')' : ''} di ${dayName} ${timeLabel}`;
           issues.push({ type: 'hard', icon: '🔗', text });
         }
       }
@@ -3295,7 +3292,7 @@ function renderConflictCenter() {
 }
 
 // ============================================================
-// HEATMAP VIEW
+// 27. HEATMAP VIEW
 // ============================================================
 
 let heatmapActive = false;
@@ -3400,7 +3397,7 @@ function removeHeatmap() {
 }
 
 // ============================================================
-// 9B. AUTO-FIX (Fix hanya matkul yang bentrok)
+// 28. AUTO-FIX (Fix hanya matkul yang bentrok)
 // ============================================================
 
 async function autoFixConflicts() {
@@ -3546,7 +3543,7 @@ async function autoFixConflicts() {
       };
       addLog(`   ✅ ${course.name} → ${DAYS[bestSlot.dayIndex]} ${state.timeSlots[bestSlot.timeIndex]?.label || ''} (${bestSlot.room})`, 'success');
     } else {
-      addLog(`   ⚠️ ${course.name} — tidak ditemukan slot yang valid`, 'warning');
+      addLog(`   ⚠️ ${course.name} - tidak ditemukan slot yang valid`, 'warning');
     }
   }
 
@@ -3571,7 +3568,7 @@ async function autoFixConflicts() {
 }
 
 // ============================================================
-// 18B. BATCH EXPORT EXCEL (SheetJS Multi-sheet)
+// 29. BATCH EXPORT EXCEL (SheetJS Multi-sheet)
 // ============================================================
 
 function exportBatchExcel() {
@@ -3797,7 +3794,7 @@ function exportBatchExcel() {
 }
 
 // ============================================================
-// 20. VERSION COMPARISON (Diff View)
+// 30. VERSION COMPARISON (Diff View)
 // ============================================================
 
 function openCompareModal() {
@@ -4002,7 +3999,7 @@ function updateComparisonTable() {
 }
 
 // ============================================================
-// 21. QR CODE SHARING (Shareable URL + Canvas QR Code)
+// 31. QR CODE SHARING (Shareable URL + Canvas QR Code)
 // ============================================================
 
 function showPersonalQR() {

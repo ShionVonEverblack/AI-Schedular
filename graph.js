@@ -1,5 +1,5 @@
 /**
- * graph.js — Conflict Graph (Adjacency List)
+ * graph.js - Conflict Graph (Adjacency List)
  * ============================================
  * Representasi graf konflik antar mata kuliah.
  *

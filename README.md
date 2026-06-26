@@ -162,7 +162,7 @@ Output: Jadwal optimal (target: 0 konflik)
 
 ---
 
-## 📸 Screenshot
+## Screenshot
 
 ![Tampilan Kalender Kelas Paralel](media__1780737767803.png)
 

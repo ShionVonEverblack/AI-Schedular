@@ -1,5 +1,5 @@
 /**
- * data.js — Model Data & Preset Jadwal Semester 2
+ * data.js - Model Data & Preset Jadwal Semester 2
  * ================================================
  * Berisi definisi hari, slot waktu, warna kartu matkul,
  * data preset mata kuliah semester 2, dan fungsi
@@ -55,7 +55,7 @@ const COURSE_COLORS = [
 ];
 
 // ============================================================
-// 3. DATA PRESET — RUANGAN (dengan kapasitas)
+// 3. DATA PRESET - RUANGAN (dengan kapasitas)
 // ============================================================
 
 const PRESET_ROOMS = [
@@ -66,7 +66,7 @@ const PRESET_ROOMS = [
 ];
 
 // ============================================================
-// 4. DATA PRESET — MATA KULIAH SEMESTER 2 (dengan jumlah mahasiswa)
+// 4. DATA PRESET - MATA KULIAH SEMESTER 2 (dengan jumlah mahasiswa)
 // ============================================================
 
 const PRESET_COURSES = [
@@ -101,7 +101,7 @@ function generateAllSlots(rooms, timeSlots) {
 }
 
 // ============================================================
-// 6. FUNGSI: Bangun Constraints (Batasan Konflik) aasdasda
+// 6. FUNGSI: Bangun Constraints (Batasan Konflik)
 // ============================================================
 // Dua matkul TIDAK BOLEH dijadwalkan bersamaan jika:
 //   - Dosen yang mengajar sama, ATAU

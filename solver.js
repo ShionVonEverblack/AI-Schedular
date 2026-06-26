@@ -1,5 +1,5 @@
 /**
- * solver.js — Graph Coloring + Simulated Annealing
+ * solver.js - Graph Coloring + Simulated Annealing
  * ==================================================
  * Algoritma AI untuk penjadwalan kuliah otomatis.
  *
@@ -25,7 +25,7 @@
  */
 
 // ============================================================
-// 1. GREEDY GRAPH COLORING — Solusi Awal
+// 1. GREEDY GRAPH COLORING - Solusi Awal
 // ============================================================
 // Mewarnai graf secara greedy: node dengan derajat tertinggi
 // (paling banyak konflik) diberi warna (slot waktu) duluan.
@@ -143,7 +143,7 @@ function greedyColoring(graph, courses, slots, roomCapacities) {
 }
 
 // ============================================================
-// 2. FITNESS FUNCTION — Hitung Jumlah Konflik
+// 2. FITNESS FUNCTION - Hitung Jumlah Konflik
 // ============================================================
 // Semakin kecil = semakin baik. Target = 0 (tanpa konflik).
 //
@@ -239,7 +239,7 @@ function calculateFitness(schedule, graph, courses, timeSlotsCount, roomCapaciti
 }
 
 // ============================================================
-// 3. NEIGHBOR GENERATION — Buat State Tetangga
+// 3. NEIGHBOR GENERATION - Buat State Tetangga
 // ============================================================
 // Pilih satu matkul secara acak, pindahkan ke slot waktu acak.
 // Ini adalah langkah "random successor" di pseudocode SA.
@@ -262,7 +262,7 @@ function getNeighborState(schedule, slots, courses) {
 }
 
 // ============================================================
-// 4. SIMULATED ANNEALING — Optimasi Utama
+// 4. SIMULATED ANNEALING - Optimasi Utama
 // ============================================================
 // Implementasi async agar browser tidak freeze saat animasi.
 // Menggunakan await setTimeout untuk yield control ke UI.
@@ -455,7 +455,7 @@ async function simulatedAnnealing(graph, courses, slots, config, onStep, roomCap
 }
 
 // ============================================================
-// 5. VALIDATE DROP — Cek apakah drop valid
+// 5. VALIDATE DROP - Cek apakah drop valid
 // ============================================================
 
 function validateDrop(courseId, dayIndex, timeIndex, schedule, courses, rooms) {
