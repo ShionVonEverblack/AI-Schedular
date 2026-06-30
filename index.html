@@ -1,10 +1,10 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="id">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="AI-Powered Auto-Scheduler — Penjadwalan Kuliah Otomatis menggunakan Graph Coloring dan Simulated Annealing" />
-  <title>AI Auto-Scheduler — Penjadwalan Kuliah</title>
+  <meta name="description" content="AI-Powered Auto-Scheduler - Penjadwalan Kuliah Otomatis menggunakan Graph Coloring dan Simulated Annealing" />
+  <title>AI Auto-Scheduler - Penjadwalan Kuliah</title>
   <link rel="stylesheet" href="style.css" />
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📅</text></svg>" />
   <script>
@@ -203,7 +203,7 @@
                   <option value="semester">📚 Semester</option>
                 </select>
                 <select id="filter-value" class="filter-select" style="display:none;">
-                  <option value="">— Pilih —</option>
+                  <option value="">- Pilih -</option>
                 </select>
               </div>
               <button id="btn-heatmap" class="btn btn-secondary btn-sm" style="padding: 4px 10px; font-size: 0.75rem;">🌡️ Heatmap</button>
@@ -220,14 +220,14 @@
           <div class="stat-card">
             <span class="stat-icon">🔥</span>
             <div class="stat-info">
-              <span class="stat-value" id="stat-conflicts">—</span>
+              <span class="stat-value" id="stat-conflicts">-</span>
               <span class="stat-label">Konflik</span>
             </div>
           </div>
           <div class="stat-card">
             <span class="stat-icon">🌡️</span>
             <div class="stat-info">
-              <span class="stat-value" id="stat-temp">—</span>
+              <span class="stat-value" id="stat-temp">-</span>
               <span class="stat-label">Suhu (T)</span>
               <div class="temp-bar-container">
                 <div class="temp-bar" id="temp-bar"></div>
@@ -237,21 +237,21 @@
           <div class="stat-card">
             <span class="stat-icon">🔄</span>
             <div class="stat-info">
-              <span class="stat-value" id="stat-iter">—</span>
+              <span class="stat-value" id="stat-iter">-</span>
               <span class="stat-label">Iterasi</span>
             </div>
           </div>
           <div class="stat-card">
             <span class="stat-icon">📊</span>
             <div class="stat-info">
-              <span class="stat-value" id="stat-fitness">—</span>
+              <span class="stat-value" id="stat-fitness">-</span>
               <span class="stat-label">Best Fitness</span>
             </div>
           </div>
           <div class="stat-card">
             <span class="stat-icon">📈</span>
             <div class="stat-info">
-              <span class="stat-value" id="stat-score">—</span>
+              <span class="stat-value" id="stat-score">-</span>
               <span class="stat-label">Skor Kualitas</span>
             </div>
           </div>
@@ -405,7 +405,7 @@
           <div style="display: flex; gap: 8px; align-items: center;">
             <label style="font-size: 0.85rem; font-weight: 500; min-width: 80px;">Pilih:</label>
             <select id="personal-filter-value" class="filter-select" style="flex: 1; padding: 8px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-surface); color: var(--text-primary);">
-              <option value="">— Pilih —</option>
+              <option value="">- Pilih -</option>
             </select>
           </div>
           

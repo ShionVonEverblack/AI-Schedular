@@ -1,4 +1,4 @@
-﻿/**
+/**
  * style.css - Premium Modern Dark Theme (Linear & Vercel Inspired)
  * ================================================================
  * Fokus: Hitam sejati, tipografi tajam, aksen terang, batas-batas tipis,
@@ -984,7 +984,7 @@ body {
 }
 
 /* ============================================================
-   14. TOOLTIP
+   13. TOOLTIP
    ============================================================ */
 .tooltip {
   position: fixed;
@@ -1044,7 +1044,7 @@ body {
 .tooltip-bad { color: var(--danger); }
 
 /* ============================================================
-   15. FILTER TOOLBAR
+   14. FILTER TOOLBAR
    ============================================================ */
 .filter-group {
   display: flex;
@@ -1078,7 +1078,7 @@ body {
 }
 
 /* ============================================================
-   16. DRAG VALIDATION HIGHLIGHTS
+   15. DRAG VALIDATION HIGHLIGHTS
    ============================================================ */
 .calendar-cell.drop-valid {
   background: rgba(16, 185, 129, 0.08) !important;
@@ -1097,7 +1097,7 @@ body {
 }
 
 /* ============================================================
-   17. VERSION MANAGEMENT
+   16. VERSION MANAGEMENT
    ============================================================ */
 .version-item {
   display: flex;
@@ -1139,7 +1139,7 @@ body {
 }
 
 /* ============================================================
-   18. LECTURER AVAILABILITY CHECKBOXES
+   17. LECTURER AVAILABILITY CHECKBOXES
    ============================================================ */
 .availability-row {
   display: flex;
@@ -1185,7 +1185,7 @@ body {
 }
 
 /* ============================================================
-   19. PROGRESS BAR
+   18. PROGRESS BAR
    ============================================================ */
 .progress-container {
   width: 100%;
@@ -1214,7 +1214,7 @@ body {
 }
 
 /* ============================================================
-   21. SEARCH BOX
+   19. SEARCH BOX
    ============================================================ */
 .search-box {
   padding: 0 0 8px 0;
@@ -1243,7 +1243,7 @@ body {
 }
 
 /* ============================================================
-   22. ONBOARDING MODAL
+   20. ONBOARDING MODAL
    ============================================================ */
 .onboarding-overlay {
   position: fixed;
@@ -1343,7 +1343,7 @@ body {
 }
 
 /* ============================================================
-   23. SHORTCUT HINTS
+   21. SHORTCUT HINTS
    ============================================================ */
 .shortcut-hints {
   display: flex;
@@ -1368,7 +1368,7 @@ body {
 }
 
 /* ============================================================
-   24. DASHBOARD
+   22. DASHBOARD
    ============================================================ */
 .dashboard-panel {
   background: var(--bg-card);
@@ -1423,7 +1423,7 @@ body {
 }
 
 /* ============================================================
-   25. MULTI-SLOT CARDS
+   23. MULTI-SLOT CARDS
    ============================================================ */
 .course-card.multi-slot {
   position: relative;
@@ -1460,7 +1460,7 @@ body {
 }
 
 /* ============================================================
-   26. MODAL & AVAILABILITY GRID
+   24. MODAL & AVAILABILITY GRID
    ============================================================ */
 .modal-overlay {
   position: fixed;
@@ -1548,7 +1548,7 @@ body {
 }
 
 /* ============================================================
-   27. CONFLICT CENTER
+   25. CONFLICT CENTER
    ============================================================ */
 .conflict-center {
   background: var(--bg-primary);
@@ -1618,7 +1618,7 @@ body {
 }
 
 /* ============================================================
-   HEATMAP
+   26. HEATMAP
    ============================================================ */
 .calendar-cell.heatmap-0 { background: rgba(34, 197, 94, 0.1) !important; }
 .calendar-cell.heatmap-1 { background: rgba(34, 197, 94, 0.3) !important; }
@@ -1650,7 +1650,7 @@ body {
 }
 
 /* ============================================================
-   27B. ROOM & COURSE TYPES BADGES & DIFF VIEW
+   27. ROOM & COURSE TYPES BADGES & DIFF VIEW
    ============================================================ */
 .badge-type {
   display: inline-block;
